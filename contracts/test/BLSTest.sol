@@ -2,16 +2,25 @@
 pragma solidity ^0.8;
 
 import {BLS} from "../BLS.sol";
-import {BLSRef} from "./BLSRef.sol";
 
 contract BLSTest {
     function test__expandMsgTo96(
         bytes memory domain,
         bytes memory message
-    ) external pure returns (bytes memory, bytes memory) {
-        return (
-            BLS.expandMsgTo96(domain, message),
-            BLSRef.expandMsgTo96(domain, message)
-        );
+    ) external pure returns (bytes memory) {
+        return BLS.expandMsgTo96(domain, message);
+    }
+
+    function test__hashToField(
+        bytes memory domain,
+        bytes memory message
+    ) external pure returns (uint256[2] memory) {
+        return BLS.hashToField(domain, message);
+    }
+
+    function test__mapToPointFT(
+        uint256 value
+    ) external pure returns (uint256[2] memory) {
+        return BLS.mapToPoint(value);
     }
 }
