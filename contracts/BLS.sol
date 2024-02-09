@@ -344,7 +344,7 @@ library BLS {
         return (a + b - 1) / b;
     }
 
-    /// @notice Produce uniformly random byte string from `message` using SHA256
+    /// @notice Produce uniformly random byte string from `message` using keccak
     /// @param domain Domain separation tag
     /// @param message Message to expand
     function expandMsgTo96(
@@ -363,12 +363,12 @@ library BLS {
         bytes memory Z_pad = i2osp(0, r_in_bytes);
         bytes memory l_i_b_str = i2osp(96, 2);
         bytes32[] memory b = new bytes32[](ell + 1);
-        bytes32 b_0 = sha256(
+        bytes32 b_0 = keccak256(
             abi.encodePacked(Z_pad, message, l_i_b_str, i2osp(0, 1), DST_prime)
         );
-        b[0] = sha256(abi.encodePacked(b_0, i2osp(1, 1), DST_prime));
+        b[0] = keccak256(abi.encodePacked(b_0, i2osp(1, 1), DST_prime));
         for (uint256 i = 1; i <= ell; ++i) {
-            b[i] = sha256(
+            b[i] = keccak256(
                 abi.encodePacked(b_0 ^ b[i - 1], i2osp(i + 1, 1), DST_prime)
             );
         }

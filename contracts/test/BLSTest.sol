@@ -23,4 +23,11 @@ contract BLSTest {
     ) external pure returns (uint256[2] memory) {
         return BLS.mapToPoint(value);
     }
+
+    function test__hashToPoint(
+        bytes memory domain,
+        bytes memory message
+    ) external view returns (uint256[2] memory) {
+        return BLS.hashToPoint(domain, message);
+    }
 }

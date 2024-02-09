@@ -1,4 +1,4 @@
-import { sha256, hexlify, zeroPadBytes, getBytes } from 'ethers'
+import { keccak256, hexlify, zeroPadBytes, getBytes } from 'ethers'
 
 export const FIELD_ORDER = 0x30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47n
 
@@ -38,7 +38,7 @@ export function expandMsg(domain: Uint8Array, msg: Uint8Array, outLen: number): 
     off += domain.length
     in0.set([domain.length], off)
 
-    const b0 = sha256(in0)
+    const b0 = keccak256(in0)
 
     const len1 = 32 + 1 + domain.length + 1
     const in1: Uint8Array = new Uint8Array(len1)
@@ -53,7 +53,7 @@ export function expandMsg(domain: Uint8Array, msg: Uint8Array, outLen: number): 
     off += domain.length
     in1.set([domain.length], off)
 
-    const b1 = sha256(in1)
+    const b1 = keccak256(in1)
 
     // b_i = H(strxor(b_0, b_(i - 1)) || I2OSP(i, 1) || DST_prime);
     const ell = Math.floor((outLen + 32 - 1) / 32)
@@ -77,7 +77,7 @@ export function expandMsg(domain: Uint8Array, msg: Uint8Array, outLen: number): 
         ini.set([domain.length], off)
 
         out.set(getBytes(bi), 32 * (i - 1))
-        bi = sha256(ini)
+        bi = keccak256(ini)
     }
 
     out.set(getBytes(bi), 32 * (ell - 1))

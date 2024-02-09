@@ -19,11 +19,11 @@ const config: HardhatUserConfig = {
     },
     networks: {
         hardhat: {
-            chainId: 534351,
+            chainId: 534352,
             forking: {
                 enabled: true,
-                url: process.env.SCROLL_SEPOLIA_URL as string,
-                blockNumber: 1624600,
+                url: process.env.SCROLL_URL as string,
+                blockNumber: 3195700,
             },
             blockGasLimit: 10_000_000,
             accounts: {
