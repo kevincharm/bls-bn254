@@ -4,12 +4,13 @@ import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers'
 import { hexlify, toUtf8Bytes } from 'ethers'
 import { expect } from 'chai'
 import crypto from 'node:crypto'
-import { g1ToBig, hashToPoint, init, mapToPoint, setDomain } from './lib/mcl'
-import { expandMsg, hashToField } from './lib/hash_to_field'
+import { BlsBn254 } from '../lib/BlsBn254'
 
 describe('BLS', () => {
+    let mcl: BlsBn254
+    const domain = 'BLS_SIG_BN254G1_XMD:KECCAK-256_SSWU_RO_NUL_'
     before(async () => {
-        await init()
+        mcl = await BlsBn254.create(domain)
     })
 
     let deployer: SignerWithAddress
@@ -20,37 +21,34 @@ describe('BLS', () => {
     })
 
     it('correctly implements expandMsgTo96', async () => {
-        const domain = toUtf8Bytes('BLS_SIG_BN254G1_XMD:KECCAK-256_SSWU_RO_NUL_')
         for (let i = 0; i < 10; i++) {
             const msg = crypto.randomBytes(32)
 
-            const [impl, gas] = await blsTest.test__expandMsgTo96(domain, msg)
+            const [impl, gas] = await blsTest.test__expandMsgTo96(toUtf8Bytes(domain), msg)
             // console.log(`expandMsgTo96(${hexlify(msg)}) = ${hexlify(impl)}`)
             // console.log(`gas: ${gas}`) // 5967
 
             // vs mcl
-            const refMcl = hexlify(expandMsg(domain, msg, 96))
+            const refMcl = hexlify(mcl.expandMsg(toUtf8Bytes(domain), msg, 96))
             expect(impl).to.eq(refMcl)
         }
     })
 
     it('correctly implements hashToField', async () => {
-        const domain = toUtf8Bytes('BLS_SIG_BN254G1_XMD:KECCAK-256_SSWU_RO_NUL_')
         const msg = crypto.randomBytes(32)
 
-        const [impl, gas] = await blsTest.test__hashToField(domain, msg)
+        const [impl, gas] = await blsTest.test__hashToField(toUtf8Bytes(domain), msg)
         // console.log(`hashToField(${hexlify(domain)}, ${hexlify(msg)}) = ${impl}`)
         // console.log(`gas: ${gas}`) // 6491
 
         // vs mcl
-        expect(impl).to.deep.eq(hashToField(domain, msg, 2))
+        expect(impl).to.deep.eq(mcl.hashToField(toUtf8Bytes(domain), msg, 2))
     })
 
     it('correctly implements mapToPointFT', async () => {
-        const domain = toUtf8Bytes('BLS_SIG_BN254G1_XMD:KECCAK-256_SSWU_RO_NUL_')
         const msg = crypto.randomBytes(32)
 
-        const u = hashToField(domain, msg, 2)
+        const u = mcl.hashToField(toUtf8Bytes(domain), msg, 2)
         const [p0Impl, p0Gas] = await blsTest.test__mapToPointFT(u[0])
         const [p1Impl, p1Gas] = await blsTest.test__mapToPointFT(u[1])
 
@@ -60,25 +58,26 @@ describe('BLS', () => {
         // console.log(`p1Gas: ${p1Gas}`) // ~33k
 
         // vs mcl
-        const p0Mcl = g1ToBig(mapToPoint('0x' + u[0].toString(16)))
-        const p1Mcl = g1ToBig(mapToPoint('0x' + u[1].toString(16)))
+        const p0Mcl = mcl.serialiseG1Point(
+            mcl.mapToPoint(('0x' + u[0].toString(16)) as `0x${string}`),
+        )
+        const p1Mcl = mcl.serialiseG1Point(
+            mcl.mapToPoint(('0x' + u[1].toString(16)) as `0x${string}`),
+        )
         expect(p0Impl).to.deep.eq(p0Mcl)
         expect(p1Impl).to.deep.eq(p1Mcl)
     })
 
     it('correctly implements hashToPoint', async () => {
-        const domain = toUtf8Bytes('BLS_SIG_BN254G1_XMD:KECCAK-256_SSWU_RO_NUL_')
-
         for (let i = 0; i < 10; i++) {
             const msg = crypto.randomBytes(32)
 
-            const [hashImpl, gas] = await blsTest.test__hashToPoint(domain, msg)
+            const [hashImpl, gas] = await blsTest.test__hashToPoint(toUtf8Bytes(domain), msg)
             // console.log(`hashToPoint(${hexlify(msg)}) = ${hashImpl}`)
             // console.log(`gas: ${gas}`) // ~~ min 50706, max 72506
 
             // mcl
-            setDomain(Buffer.from(domain).toString('utf-8'))
-            const hashRef = g1ToBig(hashToPoint(hexlify(msg)))
+            const hashRef = mcl.serialiseG1Point(mcl.hashToPoint(toUtf8Bytes(domain), msg))
             expect(hashImpl).to.deep.eq(hashRef)
         }
     })

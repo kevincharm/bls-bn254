@@ -18,3 +18,5 @@ artifacts
 circuits/proofs/
 circuits/target/
 crs/
+
+dist

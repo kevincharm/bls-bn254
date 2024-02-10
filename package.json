@@ -1,11 +1,15 @@
 {
-  "name": "bls-bn254",
+  "name": "@kevincharm/bls-bn254",
   "version": "1.0.0",
   "description": "BLS on BN254",
+  "main": "dist/lib/BlsBn254.js",
+  "types": "dist/lib/BlsBn254.d.ts",
+  "files": ["package.json", "dist/lib", "LICENSE", "README.md"],
   "scripts": {
+    "build:dist": "yarn tsc",
     "test": "yarn hardhat --network hardhat test"
   },
-  "keywords": [],
+  "keywords": ["bls", "bn254", "alt_bn128", "cryptography"],
   "author": "Kevin Charm <kevin@kevincharm.com>",
   "license": "MIT",
   "devDependencies": {
@@ -14,6 +18,8 @@
     "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
     "@nomicfoundation/hardhat-toolbox": "^3.0.0",
     "@nomicfoundation/hardhat-verify": "^1.1.1",
+    "@openzeppelin/contracts": "^5.0.0",
+    "@openzeppelin/contracts-upgradeable": "^5.0.0",
     "@typechain/ethers-v6": "^0.5.0",
     "@typechain/hardhat": "^9.0.0",
     "@types/chai": "^4.3.6",
@@ -31,9 +37,5 @@
     "ts-node": "^10.9.1",
     "typechain": "^8.3.1",
     "typescript": "^5.2.2"
-  },
-  "dependencies": {
-    "@openzeppelin/contracts": "^5.0.0",
-    "@openzeppelin/contracts-upgradeable": "^5.0.0"
   }
 }

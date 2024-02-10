@@ -1,9 +1,7 @@
 {
   "compilerOptions": {
-    "noEmit": true,
     "target": "es2020",
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
+    "module": "commonjs",
     "strict": true,
     "esModuleInterop": true,
     "outDir": "dist",
@@ -15,6 +13,7 @@
     "./scripts",
     "./test",
     "./typechain-types",
-    "./types"
+    "./types",
+    "./lib"
   ]
 }
