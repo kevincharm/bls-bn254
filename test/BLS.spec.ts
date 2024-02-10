@@ -24,7 +24,7 @@ describe('BLS', () => {
     })
 
     it('correctly implements expandMsgTo96', async () => {
-        const domain = toUtf8Bytes('BLS_SIG_BN254G1_XMD:KECCAK-256_SSWU_RO_NUL_').slice(0, 32)
+        const domain = toUtf8Bytes('BLS_SIG_BN254G1_XMD:KECCAK-256_SSWU_RO_NUL_')
         for (let i = 0; i < 10; i++) {
             const msg = crypto.randomBytes(32)
 
@@ -38,7 +38,7 @@ describe('BLS', () => {
     })
 
     it('correctly implements hashToField', async () => {
-        const domain = toUtf8Bytes('BLS_SIG_BN254G1_XMD:KECCAK-256_SSWU_RO_NUL_').slice(0, 32) // TODO: don't slice
+        const domain = toUtf8Bytes('BLS_SIG_BN254G1_XMD:KECCAK-256_SSWU_RO_NUL_')
         const msg = crypto.randomBytes(32)
 
         const impl = await blsTest.test__hashToField(domain, msg)
@@ -49,7 +49,7 @@ describe('BLS', () => {
     })
 
     it('correctly implements mapToPointFT', async () => {
-        const domain = toUtf8Bytes('BLS_SIG_BN254G1_XMD:KECCAK-256_SSWU_RO_NUL_').slice(0, 32) // TODO: don't slice
+        const domain = toUtf8Bytes('BLS_SIG_BN254G1_XMD:KECCAK-256_SSWU_RO_NUL_')
         const msg = crypto.randomBytes(32)
 
         const u = hashToField(domain, msg, 2)
@@ -67,7 +67,7 @@ describe('BLS', () => {
     })
 
     it('correctly implements hashToPoint', async () => {
-        const domain = toUtf8Bytes('BLS_SIG_BN254G1_XMD:KECCAK-256_SSWU_RO_NUL_').slice(0, 32) // TODO: don't slice
+        const domain = toUtf8Bytes('BLS_SIG_BN254G1_XMD:KECCAK-256_SSWU_RO_NUL_')
         const msg = crypto.randomBytes(32)
 
         const hashImpl = await blsTest.test__hashToPoint(domain, msg)

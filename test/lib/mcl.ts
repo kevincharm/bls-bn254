@@ -22,14 +22,14 @@ export async function init() {
 
 export function setDomain(domain: string) {
     DOMAIN = Uint8Array.from(Buffer.from(domain, 'utf8'))
-    if (DOMAIN.length != 32) {
+    if (DOMAIN.length > 255) {
         throw new Error('bad domain length')
     }
 }
 
 export function setDomainHex(domain: string) {
     DOMAIN = Uint8Array.from(Buffer.from(domain.slice(2), 'hex'))
-    if (DOMAIN.length != 32) {
+    if (DOMAIN.length > 255) {
         throw new Error('bad domain length')
     }
 }

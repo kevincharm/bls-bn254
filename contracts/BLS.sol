@@ -331,10 +331,12 @@ library BLS {
     ) internal pure returns (bytes memory) {
         uint256 t1 = domain.length;
         require(t1 < 256, "BLS: invalid domain length");
+
         // zero<64>|msg<var>|lib_str<2>|I2OSP(0, 1)<1>|dst<var>|dst_len<1>
         uint256 t0 = message.length;
         bytes memory msg0 = new bytes(t1 + t0 + 64 + 4);
         bytes memory out = new bytes(96);
+
         // b0
         // solium-disable-next-line security/no-inline-assembly
         assembly {
@@ -357,70 +359,141 @@ library BLS {
             mstore8(p, 0)
             p := add(p, 1)
 
-            mstore(p, mload(add(domain, 32)))
-            p := add(p, t1)
+            let words := div(t1, 32)
+            let d := add(domain, 32)
+            // per-word
+            for {
+                let i := 0
+            } lt(i, words) {
+                i := add(i, 1)
+            } {
+                mstore(p, mload(d))
+                p := add(p, 32)
+                d := add(d, 32)
+            }
+            // per-byte
+            let rem := mod(t1, 32)
+            for {
+                let i := 0
+            } lt(i, rem) {
+                i := add(i, 1)
+            } {
+                mstore8(p, shr(248, mload(d)))
+                p := add(p, 1)
+                d := add(d, 1)
+            }
+            // store length
             mstore8(p, t1)
-        }
-        bytes32 b0 = keccak256(msg0);
-        bytes32 bi;
-        t0 = t1 + 34;
 
-        // resize intermediate message
-        // solium-disable-next-line security/no-inline-assembly
-        assembly {
+            let b0 := keccak256(add(msg0, 32), mload(msg0))
+
+            t0 := add(t1, 34)
+
             mstore(msg0, t0)
-        }
 
-        // b1
-
-        // solium-disable-next-line security/no-inline-assembly
-        assembly {
+            // b1
             mstore(add(msg0, 32), b0)
             mstore8(add(msg0, 64), 1)
-            mstore(add(msg0, 65), mload(add(domain, 32)))
-            mstore8(add(msg0, add(t1, 65)), t1)
-        }
 
-        bi = keccak256(msg0);
+            p := add(msg0, 65)
+            words := div(t1, 32)
+            d := add(domain, 32)
+            // per-word
+            for {
+                let i := 0
+            } lt(i, words) {
+                i := add(i, 1)
+            } {
+                mstore(p, mload(d))
+                p := add(p, 32)
+                d := add(d, 32)
+            }
+            // per-byte
+            rem := mod(t1, 32)
+            for {
+                let i := 0
+            } lt(i, rem) {
+                i := add(i, 1)
+            } {
+                mstore8(p, shr(248, mload(d)))
+                p := add(p, 1)
+                d := add(d, 1)
+            }
+            // store length
+            mstore8(p, t1)
 
-        // solium-disable-next-line security/no-inline-assembly
-        assembly {
+            let bi := keccak256(add(msg0, 32), mload(msg0))
+
             mstore(add(out, 32), bi)
-        }
 
-        // b2
-
-        // solium-disable-next-line security/no-inline-assembly
-        assembly {
+            // b2
             let t := xor(b0, bi)
             mstore(add(msg0, 32), t)
             mstore8(add(msg0, 64), 2)
-            mstore(add(msg0, 65), mload(add(domain, 32)))
-            mstore8(add(msg0, add(t1, 65)), t1)
-        }
 
-        bi = keccak256(msg0);
+            p := add(msg0, 65)
+            words := div(t1, 32)
+            d := add(domain, 32)
+            // per-word
+            for {
+                let i := 0
+            } lt(i, words) {
+                i := add(i, 1)
+            } {
+                mstore(p, mload(d))
+                p := add(p, 32)
+                d := add(d, 32)
+            }
+            // per-byte
+            rem := mod(t1, 32)
+            for {
+                let i := 0
+            } lt(i, rem) {
+                i := add(i, 1)
+            } {
+                mstore8(p, shr(248, mload(d)))
+                p := add(p, 1)
+                d := add(d, 1)
+            }
+            // store length
+            mstore8(p, t1)
 
-        // solium-disable-next-line security/no-inline-assembly
-        assembly {
+            bi := keccak256(add(msg0, 32), mload(msg0))
             mstore(add(out, 64), bi)
-        }
 
-        // // b3
-
-        // solium-disable-next-line security/no-inline-assembly
-        assembly {
-            let t := xor(b0, bi)
+            // b3
+            t := xor(b0, bi)
             mstore(add(msg0, 32), t)
             mstore8(add(msg0, 64), 3)
-            mstore(add(msg0, 65), mload(add(domain, 32)))
-            mstore8(add(msg0, add(t1, 65)), t1)
-        }
 
-        bi = keccak256(msg0);
+            p := add(msg0, 65)
+            words := div(t1, 32)
+            d := add(domain, 32)
+            // per-word
+            for {
+                let i := 0
+            } lt(i, words) {
+                i := add(i, 1)
+            } {
+                mstore(p, mload(d))
+                p := add(p, 32)
+                d := add(d, 32)
+            }
+            // per-byte
+            rem := mod(t1, 32)
+            for {
+                let i := 0
+            } lt(i, rem) {
+                i := add(i, 1)
+            } {
+                mstore8(p, shr(248, mload(d)))
+                p := add(p, 1)
+                d := add(d, 1)
+            }
+            // store length
+            mstore8(p, t1)
 
-        // solium-disable-next-line security/no-inline-assembly
-        assembly {
+            bi := keccak256(add(msg0, 32), mload(msg0))
             mstore(add(out, 96), bi)
         }
 
