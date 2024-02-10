@@ -4,12 +4,8 @@ import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers'
 import { hexlify, toUtf8Bytes } from 'ethers'
 import { expect } from 'chai'
 import crypto from 'node:crypto'
-import * as noblehtc from '@noble/curves/abstract/hash-to-curve'
-import { sha256 } from '@noble/hashes/sha256'
-import { keccak_256 } from '@noble/hashes/sha3'
 import { g1ToBig, hashToPoint, init, mapToPoint, setDomain } from './lib/mcl'
 import { expandMsg, hashToField } from './lib/hash_to_field'
-// const abi = ethers.AbiCoder.defaultAbiCoder()
 
 describe('BLS', () => {
     before(async () => {
