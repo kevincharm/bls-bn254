@@ -24,16 +24,13 @@ describe('BLS', () => {
     })
 
     it('correctly implements expandMsgTo96', async () => {
-        const domain = toUtf8Bytes('BLS_SIG_BN254G1_XMD:KECCAK-256_SSWU_RO_NUL_').slice(0, 32) // TODO: don't slice
+        const domain = toUtf8Bytes('BLS_SIG_BN254G1_XMD:KECCAK-256_SSWU_RO_NUL_').slice(0, 32)
         for (let i = 0; i < 10; i++) {
             const msg = crypto.randomBytes(32)
 
             const impl = await blsTest.test__expandMsgTo96(domain, msg)
             // console.log(`expandMsgTo96(${hexlify(msg)}) = ${hexlify(impl)}`)
 
-            // vs noble
-            // TODO: This works with sha256, why not with keccak_256?
-            // expect(impl).to.eq(hexlify(noblehtc.expand_message_xmd(msg, domain, 96, keccak_256)))
             // vs mcl
             const refMcl = hexlify(expandMsg(domain, msg, 96))
             expect(impl).to.eq(refMcl)
@@ -45,7 +42,7 @@ describe('BLS', () => {
         const msg = crypto.randomBytes(32)
 
         const impl = await blsTest.test__hashToField(domain, msg)
-        console.log(`hashToField(${hexlify(domain)}, ${hexlify(msg)}) = ${impl}`)
+        // console.log(`hashToField(${hexlify(domain)}, ${hexlify(msg)}) = ${impl}`)
 
         // vs mcl
         expect(impl).to.deep.eq(hashToField(domain, msg, 2))

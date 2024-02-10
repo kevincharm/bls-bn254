@@ -325,58 +325,105 @@ library BLS {
         return [a0, a1];
     }
 
-    /// @notice Convert integer to octet stream
-    /// @param value Integer to convert
-    /// @param length Byte-length of integer
-    function i2osp(
-        uint256 value,
-        uint256 length
-    ) internal pure returns (bytes memory) {
-        bytes memory res = new bytes(length);
-        for (int256 i = int256(length) - 1; i >= 0; --i) {
-            res[uint256(i)] = bytes1(uint8(value & 0xff));
-            value >>= 8;
-        }
-        return res;
-    }
-
-    function ceilDiv(uint256 a, uint256 b) internal pure returns (uint256) {
-        return (a + b - 1) / b;
-    }
-
-    /// @notice Produce uniformly random byte string from `message` using keccak
-    /// @param domain Domain separation tag
-    /// @param message Message to expand
     function expandMsgTo96(
         bytes memory domain,
         bytes memory message
     ) internal pure returns (bytes memory) {
-        uint256 b_in_bytes = 32;
-        uint256 r_in_bytes = b_in_bytes * 2;
-        uint256 ell = ceilDiv(96, b_in_bytes);
-        require(ell <= 255, "Invalid xmd length");
-        bytes memory DST_prime = abi.encodePacked(
-            domain,
-            i2osp(domain.length, 1)
-        ); // CORRECT
-        // ---------------------------------------
-        bytes memory Z_pad = i2osp(0, r_in_bytes);
-        bytes memory l_i_b_str = i2osp(96, 2);
-        bytes32[] memory b = new bytes32[](ell + 1);
-        bytes32 b_0 = keccak256(
-            abi.encodePacked(Z_pad, message, l_i_b_str, i2osp(0, 1), DST_prime)
-        );
-        b[0] = keccak256(abi.encodePacked(b_0, i2osp(1, 1), DST_prime));
-        for (uint256 i = 1; i <= ell; ++i) {
-            b[i] = keccak256(
-                abi.encodePacked(b_0 ^ b[i - 1], i2osp(i + 1, 1), DST_prime)
-            );
+        uint256 t1 = domain.length;
+        require(t1 < 256, "BLS: invalid domain length");
+        // zero<64>|msg<var>|lib_str<2>|I2OSP(0, 1)<1>|dst<var>|dst_len<1>
+        uint256 t0 = message.length;
+        bytes memory msg0 = new bytes(t1 + t0 + 64 + 4);
+        bytes memory out = new bytes(96);
+        // b0
+        // solium-disable-next-line security/no-inline-assembly
+        assembly {
+            let p := add(msg0, 96)
+
+            let z := 0
+            for {
+
+            } lt(z, t0) {
+                z := add(z, 32)
+            } {
+                mstore(add(p, z), mload(add(message, add(z, 32))))
+            }
+            p := add(p, t0)
+
+            mstore8(p, 0)
+            p := add(p, 1)
+            mstore8(p, 96)
+            p := add(p, 1)
+            mstore8(p, 0)
+            p := add(p, 1)
+
+            mstore(p, mload(add(domain, 32)))
+            p := add(p, t1)
+            mstore8(p, t1)
         }
-        // ---------------------------------------
-        bytes memory pseudo_random_bytes = abi.encodePacked(b[0]);
-        for (uint256 i = 1; i < 96 / 32 /** each b[i] is bytes32 */; ++i) {
-            pseudo_random_bytes = abi.encodePacked(pseudo_random_bytes, b[i]);
+        bytes32 b0 = keccak256(msg0);
+        bytes32 bi;
+        t0 = t1 + 34;
+
+        // resize intermediate message
+        // solium-disable-next-line security/no-inline-assembly
+        assembly {
+            mstore(msg0, t0)
         }
-        return pseudo_random_bytes;
+
+        // b1
+
+        // solium-disable-next-line security/no-inline-assembly
+        assembly {
+            mstore(add(msg0, 32), b0)
+            mstore8(add(msg0, 64), 1)
+            mstore(add(msg0, 65), mload(add(domain, 32)))
+            mstore8(add(msg0, add(t1, 65)), t1)
+        }
+
+        bi = keccak256(msg0);
+
+        // solium-disable-next-line security/no-inline-assembly
+        assembly {
+            mstore(add(out, 32), bi)
+        }
+
+        // b2
+
+        // solium-disable-next-line security/no-inline-assembly
+        assembly {
+            let t := xor(b0, bi)
+            mstore(add(msg0, 32), t)
+            mstore8(add(msg0, 64), 2)
+            mstore(add(msg0, 65), mload(add(domain, 32)))
+            mstore8(add(msg0, add(t1, 65)), t1)
+        }
+
+        bi = keccak256(msg0);
+
+        // solium-disable-next-line security/no-inline-assembly
+        assembly {
+            mstore(add(out, 64), bi)
+        }
+
+        // // b3
+
+        // solium-disable-next-line security/no-inline-assembly
+        assembly {
+            let t := xor(b0, bi)
+            mstore(add(msg0, 32), t)
+            mstore8(add(msg0, 64), 3)
+            mstore(add(msg0, 65), mload(add(domain, 32)))
+            mstore8(add(msg0, add(t1, 65)), t1)
+        }
+
+        bi = keccak256(msg0);
+
+        // solium-disable-next-line security/no-inline-assembly
+        assembly {
+            mstore(add(out, 96), bi)
+        }
+
+        return out;
     }
 }
