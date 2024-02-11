@@ -4,12 +4,7 @@
   "description": "BLS on BN254",
   "main": "dist/lib/BlsBn254.js",
   "types": "dist/lib/BlsBn254.d.ts",
-  "files": [
-    "package.json",
-    "dist/lib",
-    "LICENSE",
-    "README.md"
-  ],
+  "files": ["package.json", "dist/lib", "contracts", "LICENSE", "README.md"],
   "scripts": {
     "bls:newkey": "yarn ts-node scripts/newkey.ts",
     "bls:sign": "yarn ts-node scripts/sign.ts",
@@ -17,12 +12,7 @@
     "test": "yarn hardhat --network hardhat test",
     "coverage": "yarn hardhat coverage"
   },
-  "keywords": [
-    "bls",
-    "bn254",
-    "alt_bn128",
-    "cryptography"
-  ],
+  "keywords": ["bls", "bn254", "alt_bn128", "cryptography"],
   "author": "Kevin Charm <kevin@kevincharm.com>",
   "license": "MIT",
   "devDependencies": {
