@@ -176,6 +176,22 @@ library BLS {
         }
     }
 
+    /// @notice Check if `publicKey` is a valid public key
+    /// @param publicKey PK to check
+    function isValidPublicKey(
+        uint256[4] memory publicKey
+    ) internal pure returns (bool) {
+        if (
+            (publicKey[0] >= N) ||
+            (publicKey[1] >= N) ||
+            (publicKey[2] >= N || (publicKey[3] >= N))
+        ) {
+            return false;
+        } else {
+            return isOnCurveG2(publicKey);
+        }
+    }
+
     /// @notice Check if `point` is in G1
     /// @param point Point to check
     function isOnCurveG1(

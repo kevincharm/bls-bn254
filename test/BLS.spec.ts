@@ -88,7 +88,7 @@ describe('BLS', () => {
         }
     })
 
-    it('verifies on valid sigs', async () => {
+    it('verifies only valid sigs', async () => {
         const round = 2
         const roundBytes = new Uint8Array(8)
         roundBytes[7] = round
@@ -119,6 +119,56 @@ describe('BLS', () => {
             false,
         )
         expect(await blsTest.test__isValidSignature(yFieldOverflowSig).then((ret) => ret[0])).to.eq(
+            false,
+        )
+    })
+
+    it('verifies only valid pubkeys', async () => {
+        const validPubKey = kyberG2ToEvm(
+            getBytes(
+                '0x23c481bf1f32e4ce0c421d9408959b0ba59ad2671a55ae271ee685cee48a516f2ce733a719d57494963388057c26dcf10ac9fe62fab4571948c729f0dbb44017124ee2ce5bbb9f131b1730e639d65d76819bd920984b86efc2142c52747208911c4aab034dd68e6c83daf63673df99bd3a6b8cf95f2079ba3b25378a02d618b3',
+            ),
+        )
+        const invalidPubKey = kyberG2ToEvm(
+            getBytes(
+                '0x23c481bf1f32e4ce0c421d9408959b0ba59ad2671a55ae271ee685cee48a516f2ce733a719d57494963388057c26dcf10ac9fe62fab4571948c729f0dbb44017124ee2ce5bbb9f131b1730e639d65d76819bd920984b86efc2142c52747208911c4aab034dd68e6c83daf63673df99bd3a6b8cf95f2079ba3b25378a02d61800',
+            ),
+        )
+        const xFieldOverflowSig = kyberG2ToEvm(
+            getBytes(
+                '0x30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd48000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+            ),
+        )
+        const yFieldOverflowSig = kyberG2ToEvm(
+            getBytes(
+                '0x000000000000000000000000000000000000000000000000000000000000000030644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd4800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+            ),
+        )
+        const zFieldOverflowSig = kyberG2ToEvm(
+            getBytes(
+                '0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000030644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd480000000000000000000000000000000000000000000000000000000000000000',
+            ),
+        )
+        const wFieldOverflowSig = kyberG2ToEvm(
+            getBytes(
+                '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000030644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd48',
+            ),
+        )
+
+        expect(await blsTest.test__isValidPublicKey(validPubKey).then((ret) => ret[0])).to.eq(true)
+        expect(await blsTest.test__isValidPublicKey(invalidPubKey).then((ret) => ret[0])).to.eq(
+            false,
+        )
+        expect(await blsTest.test__isValidPublicKey(xFieldOverflowSig).then((ret) => ret[0])).to.eq(
+            false,
+        )
+        expect(await blsTest.test__isValidPublicKey(yFieldOverflowSig).then((ret) => ret[0])).to.eq(
+            false,
+        )
+        expect(await blsTest.test__isValidPublicKey(zFieldOverflowSig).then((ret) => ret[0])).to.eq(
+            false,
+        )
+        expect(await blsTest.test__isValidPublicKey(wFieldOverflowSig).then((ret) => ret[0])).to.eq(
             false,
         )
     })

@@ -80,4 +80,12 @@ contract BLSTest {
         isValid = BLS.isValidSignature(signature);
         gas = gas - gasleft();
     }
+
+    function test__isValidPublicKey(
+        uint256[4] memory publicKey
+    ) external view returns (bool isValid, uint256 gas) {
+        gas = gasleft();
+        isValid = BLS.isValidPublicKey(publicKey);
+        gas = gas - gasleft();
+    }
 }
