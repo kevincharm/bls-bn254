@@ -38,4 +38,26 @@ contract BLSTest {
         p = BLS.hashToPoint(domain, message);
         gas = gas - gasleft();
     }
+
+    function verifySingle(
+        uint256[2] memory signature,
+        uint256[4] memory pubkey,
+        uint256[2] memory message
+    ) external view returns (bool success, uint256 gas) {
+        gas = gasleft();
+        success = BLS.verifySingle(signature, pubkey, message);
+        gas = gas - gasleft();
+    }
+
+    function isOnCurveG1(
+        uint256[2] memory point
+    ) external pure returns (bool _isOnCurve) {
+        return BLS.isOnCurveG1(point);
+    }
+
+    function isOnCurveG2(
+        uint256[4] memory point
+    ) external pure returns (bool _isOnCurve) {
+        return BLS.isOnCurveG2(point);
+    }
 }

@@ -2,7 +2,6 @@
 pragma solidity ^0.8;
 
 import {ModexpInverse, ModexpSqrt} from "./ModExp.sol";
-import {BNPairingPrecompileCostEstimator} from "./BNPairingPrecompileCostEstimator.sol";
 
 /**
     @title  Boneh–Lynn–Shacham (BLS) signature scheme on Barreto-Naehrig 254 bit curve (BN-254)
@@ -44,7 +43,7 @@ library BLS {
         uint256[2] memory signature,
         uint256[4] memory pubkey,
         uint256[2] memory message
-    ) internal view returns (bool, bool) {
+    ) internal view returns (bool) {
         uint256[12] memory input = [
             signature[0],
             signature[1],
@@ -60,32 +59,24 @@ library BLS {
             pubkey[2]
         ];
         uint256[1] memory out;
-        uint256 precompileGasCost = BNPairingPrecompileCostEstimator(
-            COST_ESTIMATOR_ADDRESS
-        ).getGasCost(2);
-        bool callSuccess;
+        bool success;
         // solium-disable-next-line security/no-inline-assembly
         assembly {
-            callSuccess := staticcall(
-                precompileGasCost,
-                8,
-                input,
-                384,
-                out,
-                0x20
-            )
+            success := staticcall(sub(gas(), 2000), 8, input, 384, out, 0x20)
+            switch success
+            case 0 {
+                invalid()
+            }
         }
-        if (!callSuccess) {
-            return (false, false);
-        }
-        return (out[0] != 0, true);
+        require(success, "");
+        return out[0] != 0;
     }
 
     function verifyMultiple(
         uint256[2] memory signature,
         uint256[4][] memory pubkeys,
         uint256[2][] memory messages
-    ) internal view returns (bool checkResult, bool callSuccess) {
+    ) internal view returns (bool) {
         uint256 size = pubkeys.length;
         require(size > 0, "BLS: number of public key is zero");
         require(
@@ -109,24 +100,24 @@ library BLS {
             input[i * 6 + 11] = pubkeys[i][2];
         }
         uint256[1] memory out;
-
-        // prettier-ignore
-        uint256 precompileGasCost = BNPairingPrecompileCostEstimator(COST_ESTIMATOR_ADDRESS).getGasCost(size + 1);
+        bool success;
         // solium-disable-next-line security/no-inline-assembly
         assembly {
-            callSuccess := staticcall(
-                precompileGasCost,
+            success := staticcall(
+                sub(gas(), 2000),
                 8,
                 add(input, 0x20),
                 mul(inputSize, 0x20),
                 out,
                 0x20
             )
+            switch success
+            case 0 {
+                invalid()
+            }
         }
-        if (!callSuccess) {
-            return (false, false);
-        }
-        return (out[0] != 0, true);
+        require(success, "");
+        return out[0] != 0;
     }
 
     /**
