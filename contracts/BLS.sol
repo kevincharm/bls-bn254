@@ -3,11 +3,10 @@ pragma solidity ^0.8;
 
 import {ModexpInverse, ModexpSqrt} from "./ModExp.sol";
 
-/**
-    @title  Boneh–Lynn–Shacham (BLS) signature scheme on Barreto-Naehrig 254 bit curve (BN-254)
-    @notice We use BLS signature aggregation to reduce the size of signature data to store on chain.
-    @dev We use G1 points for signatures and messages, and G2 points for public keys
- */
+/// @title  Boneh–Lynn–Shacham (BLS) signature scheme on Barreto-Naehrig 254 bit curve (BN-254)
+/// @notice We use BLS signature aggregation to reduce the size of signature data to store on chain.
+/// @dev We use G1 points for signatures and messages, and G2 points for public keys
+/// @dev Adapted from https://github.com/thehubbleproject/hubble-contracts
 library BLS {
     // Field order
     // prettier-ignore
@@ -73,9 +72,10 @@ library BLS {
         return (out[0] != 0, callSuccess);
     }
 
-    /**
-    @notice Fouque-Tibouchi Hash to Curve
-     */
+    /// @notice Fouque-Tibouchi constant-time hash-to-curve
+    /// @param domain Domain separation tag
+    /// @param message Message to hash
+    /// @return Point in G1
     function hashToPoint(
         bytes memory domain,
         bytes memory message
@@ -97,6 +97,9 @@ library BLS {
         return p0;
     }
 
+    /// @notice Fouque-Tibouchi specialised SW mapping for BN curves
+    /// @param _x Field element to map
+    /// @return p Point on curve
     function mapToPoint(
         uint256 _x
     ) internal pure returns (uint256[2] memory p) {
@@ -161,6 +164,8 @@ library BLS {
         return [x, a1];
     }
 
+    /// @notice Check if `signature` is a valid signature
+    /// @param signature Signature to check
     function isValidSignature(
         uint256[2] memory signature
     ) internal pure returns (bool) {
@@ -171,6 +176,8 @@ library BLS {
         }
     }
 
+    /// @notice Check if `point` is in G1
+    /// @param point Point to check
     function isOnCurveG1(
         uint256[2] memory point
     ) internal pure returns (bool _isOnCurve) {
@@ -186,6 +193,8 @@ library BLS {
         }
     }
 
+    /// @notice Check if `point` is in G2
+    /// @param point Point to check
     function isOnCurveG2(
         uint256[4] memory point
     ) internal pure returns (bool _isOnCurve) {
@@ -231,20 +240,27 @@ library BLS {
         }
     }
 
+    /// @notice sqrt(xx) mod N
+    /// @param xx Input
     function sqrt(uint256 xx) internal pure returns (uint256 x, bool hasRoot) {
         x = ModexpSqrt.run(xx);
         hasRoot = mulmod(x, x, N) == xx;
     }
 
+    /// @notice a^{-1} mod N
+    /// @param a Input
     function inverse(uint256 a) internal pure returns (uint256) {
         return ModexpInverse.run(a);
     }
 
+    /// @notice Hash a message to the field
+    /// @param domain Domain separation tag
+    /// @param message Message to hash
     function hashToField(
         bytes memory domain,
-        bytes memory messages
+        bytes memory message
     ) internal pure returns (uint256[2] memory) {
-        bytes memory _msg = expandMsgTo96(domain, messages);
+        bytes memory _msg = expandMsgTo96(domain, message);
         uint256 u0;
         uint256 u1;
         uint256 a0;
@@ -265,6 +281,10 @@ library BLS {
         return [a0, a1];
     }
 
+    /// @notice Expand arbitrary message to 96 pseudorandom bytes, as described
+    ///     in rfc9380 section 5.3.1, using H = keccak256.
+    /// @param domain Domain separation tag
+    /// @param message Message to expand
     function expandMsgTo96(
         bytes memory domain,
         bytes memory message
