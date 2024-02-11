@@ -1,7 +1,7 @@
 import { ethers } from 'hardhat'
 import { BLSTest, BLSTest__factory } from '../typechain-types'
 import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers'
-import { getBytes, hexlify, keccak256, toUtf8Bytes } from 'ethers'
+import { getBytes, hexlify, keccak256, sha256, toUtf8Bytes } from 'ethers'
 import { expect } from 'chai'
 import crypto from 'node:crypto'
 import {
@@ -268,6 +268,11 @@ describe('BLS', () => {
             const [M] = await blsTest.test__hashToPoint(toUtf8Bytes(domain), h)
             const [valid] = await blsTest.test__verifySingle(sig, pk, [M[0], M[1]])
             expect(valid).to.eq(true)
+
+            // NB: drand hashes signatures with sha256 to produce `randomness`,
+            // but we can technically use any hash onchain as the verifiability of
+            // the randomness only depends on the validity of the signature.
+            expect(sha256(sigBytes)).to.eq(hexlify(`0x${randomness}`))
         }
     })
 })
