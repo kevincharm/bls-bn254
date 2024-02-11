@@ -38,6 +38,11 @@ library BLS {
     address private constant COST_ESTIMATOR_ADDRESS =
         0x079d8077C465BD0BF0FC502aD2B846757e415661;
 
+    error BNAddFailed(uint256[4] input);
+    error InvalidFieldElement(uint256 x);
+    error MapToPointFailed(uint256 noSqrt);
+    error InvalidDSTLength(bytes dst);
+
     function verifySingle(
         uint256[2] memory signature,
         uint256[4] memory pubkey,
@@ -93,18 +98,15 @@ library BLS {
         assembly {
             success := staticcall(sub(gas(), 2000), 6, bnAddInput, 128, p0, 64)
         }
-        require(success, "BLS: bn add call failed");
+        if (!success) revert BNAddFailed(bnAddInput);
         return p0;
     }
 
     /// @notice Fouque-Tibouchi specialised SW mapping for BN curves
-    /// @param _x Field element to map
+    /// @param x Field element to map
     /// @return p Point on curve
-    function mapToPoint(
-        uint256 _x
-    ) internal pure returns (uint256[2] memory p) {
-        require(_x < N, "mapToPointFT: invalid field element");
-        uint256 x = _x;
+    function mapToPoint(uint256 x) internal pure returns (uint256[2] memory p) {
+        if (x >= N) revert InvalidFieldElement(x);
 
         (, bool decision) = sqrt(x);
 
@@ -157,7 +159,7 @@ library BLS {
         a1 = mulmod(a1, x, N);
         a1 = addmod(a1, 3, N);
         (a1, found) = sqrt(a1);
-        require(found, "BLS: bad ft mapping implementation");
+        if (!found) revert MapToPointFailed(a1);
         if (!decision) {
             a1 = N - a1;
         }
@@ -306,7 +308,7 @@ library BLS {
         bytes memory message
     ) internal pure returns (bytes memory) {
         uint256 t1 = domain.length;
-        require(t1 < 256, "BLS: invalid domain length");
+        if (t1 > 255) revert InvalidDSTLength(domain);
 
         // zero<64>|msg<var>|lib_str<2>|I2OSP(0, 1)<1>|dst<var>|dst_len<1>
         uint256 t0 = message.length;
