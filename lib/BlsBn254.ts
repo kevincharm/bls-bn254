@@ -234,6 +234,21 @@ export function kyberMarshalG1(p: G1) {
     ].join('')
 }
 
+export function kyberG1ToEvm(g1: Uint8Array): [bigint, bigint] {
+    const p = [g1.slice(0, 32), g1.slice(32, 64)].map((sigBuf) => BigInt(hexlify(sigBuf))) as [
+        bigint,
+        bigint,
+    ]
+    return p
+}
+
+export function kyberG2ToEvm(g2: Uint8Array): [bigint, bigint, bigint, bigint] {
+    const p = [g2.slice(32, 64), g2.slice(0, 32), g2.slice(96, 128), g2.slice(64, 96)].map((pBuf) =>
+        BigInt(hexlify(pBuf)),
+    ) as [bigint, bigint, bigint, bigint]
+    return p
+}
+
 function mod(a: bigint, b: bigint) {
     return ((a % b) + b) % b
 }

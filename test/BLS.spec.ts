@@ -4,7 +4,13 @@ import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers'
 import { getBytes, hexlify, keccak256, toUtf8Bytes } from 'ethers'
 import { expect } from 'chai'
 import crypto from 'node:crypto'
-import { BlsBn254, kyberMarshalG1, kyberMarshalG2 } from '../lib/BlsBn254'
+import {
+    BlsBn254,
+    kyberG1ToEvm,
+    kyberG2ToEvm,
+    kyberMarshalG1,
+    kyberMarshalG2,
+} from '../lib/BlsBn254'
 
 describe('BLS', () => {
     let mcl: BlsBn254
@@ -82,7 +88,42 @@ describe('BLS', () => {
         }
     })
 
-    it('hashToPoint vs kyber', async () => {
+    it('verifies on valid sigs', async () => {
+        const round = 2
+        const roundBytes = new Uint8Array(8)
+        roundBytes[7] = round
+        const validSig = kyberG1ToEvm(
+            getBytes(
+                '0x04f6e9c2b5877d798e742363d075999a5493c3eb96f7c7923c6115bcc8b534a010c8d7068d7738c39d499ce7b084b65d65c8223106e33da12b1b862bccdb9222',
+            ),
+        )
+        const invalidSig = kyberG1ToEvm(
+            getBytes(
+                '0x04f6e9c2b5877d798e742363d075999a5493c3eb96f7c7923c6115bcc8b534a010c8d7068d7738c39d499ce7b084b65d65c8223106e33da12b1b862bccdb9200',
+            ),
+        )
+        const xFieldOverflowSig = kyberG1ToEvm(
+            getBytes(
+                '0x30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd480000000000000000000000000000000000000000000000000000000000000000',
+            ),
+        )
+        const yFieldOverflowSig = kyberG1ToEvm(
+            getBytes(
+                '0x000000000000000000000000000000000000000000000000000000000000000030644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd48',
+            ),
+        )
+
+        expect(await blsTest.test__isValidSignature(validSig).then((ret) => ret[0])).to.eq(true)
+        expect(await blsTest.test__isValidSignature(invalidSig).then((ret) => ret[0])).to.eq(false)
+        expect(await blsTest.test__isValidSignature(xFieldOverflowSig).then((ret) => ret[0])).to.eq(
+            false,
+        )
+        expect(await blsTest.test__isValidSignature(yFieldOverflowSig).then((ret) => ret[0])).to.eq(
+            false,
+        )
+    })
+
+    it('correctly implements hashToPoint vs kyber', async () => {
         const msg = '0x358518b89b9d3a2a832fe0cdcb2f4f2d66391113001a77e03b80dd720b8d1aab'
         const [hashImpl] = await blsTest.test__hashToPoint(toUtf8Bytes(domain), msg)
         expect(hashImpl).to.deep.eq([
@@ -109,13 +150,20 @@ describe('BLS', () => {
         // console.log('sig', kyberMarshalG1(signature))
 
         const args = mcl.toArgs(pubKey, M, signature)
-        expect(await blsTest.isOnCurveG1(args.signature)).to.eq(true) // 400 gas
-        expect(await blsTest.isOnCurveG1(args.M)).to.eq(true) // 400 gas
-        expect(await blsTest.isOnCurveG2(args.pubKey)).to.eq(true) // 865k gas
+        expect(await blsTest.test__isOnCurveG1(args.signature).then((ret) => ret[0])).to.eq(true) // 400 gas
+        expect(await blsTest.test__isOnCurveG1(args.M).then((ret) => ret[0])).to.eq(true) // 400 gas
+        expect(await blsTest.test__isOnCurveG2(args.pubKey).then((ret) => ret[0])).to.eq(true) // 865k gas
         expect(
-            await blsTest.verifySingle(args.signature, args.pubKey, args.M).then((ret) => ret[0]),
+            await blsTest
+                .test__verifySingle(args.signature, args.pubKey, args.M)
+                .then((ret) => ret[0]),
         ).to.eq(true)
         // console.log('gas:', await blsTest.verifySingleGasCost(args.signature, args.pubKey, args.M))
+
+        const invalidSig = args.signature.map((v) => v + 1n) as [bigint, bigint]
+        expect(
+            await blsTest.test__verifySingle(invalidSig, args.pubKey, args.M).then((ret) => ret[0]),
+        ).to.eq(false)
     })
 
     it('drand outputs', async () => {
@@ -123,12 +171,7 @@ describe('BLS', () => {
         const groupPubKey =
             '23c481bf1f32e4ce0c421d9408959b0ba59ad2671a55ae271ee685cee48a516f2ce733a719d57494963388057c26dcf10ac9fe62fab4571948c729f0dbb44017124ee2ce5bbb9f131b1730e639d65d76819bd920984b86efc2142c52747208911c4aab034dd68e6c83daf63673df99bd3a6b8cf95f2079ba3b25378a02d618b3'
         const pkBytes = getBytes(`0x${groupPubKey}`)
-        const pk = [
-            pkBytes.slice(32, 64),
-            pkBytes.slice(0, 32),
-            pkBytes.slice(96, 128),
-            pkBytes.slice(64, 96),
-        ].map((pkBuf) => BigInt(hexlify(pkBuf))) as [bigint, bigint, bigint, bigint]
+        const pk = kyberG2ToEvm(pkBytes)
         const testVectors = [
             {
                 round: 2,
@@ -164,15 +207,16 @@ describe('BLS', () => {
         ]
         for (const { round, signature, randomness } of testVectors) {
             const sigBytes = getBytes(`0x${signature}`)
-            const sig = [sigBytes.slice(0, 32), sigBytes.slice(32, 64)].map((sigBuf) =>
-                BigInt(hexlify(sigBuf)),
-            ) as [bigint, bigint]
+            const sig = kyberG1ToEvm(sigBytes)
+
+            const [isValidSig] = await blsTest.test__isValidSignature(sig)
+            expect(isValidSig).to.eq(true)
 
             // Round number must be interpreted as a uint64, then fed into keccak256
             const roundBytes = getBytes('0x' + round.toString(16).padStart(16, '0'))
             const h = keccak256(roundBytes)
             const [M] = await blsTest.test__hashToPoint(toUtf8Bytes(domain), h)
-            const [valid] = await blsTest.verifySingle(sig, pk, [M[0], M[1]])
+            const [valid] = await blsTest.test__verifySingle(sig, pk, [M[0], M[1]])
             expect(valid).to.eq(true)
         }
     })

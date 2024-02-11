@@ -43,7 +43,7 @@ library BLS {
         uint256[2] memory signature,
         uint256[4] memory pubkey,
         uint256[2] memory message
-    ) internal view returns (bool) {
+    ) internal view returns (bool pairingSuccess, bool callSuccess) {
         uint256[12] memory input = [
             signature[0],
             signature[1],
@@ -59,65 +59,18 @@ library BLS {
             pubkey[2]
         ];
         uint256[1] memory out;
-        bool success;
         // solium-disable-next-line security/no-inline-assembly
         assembly {
-            success := staticcall(sub(gas(), 2000), 8, input, 384, out, 0x20)
-            switch success
-            case 0 {
-                invalid()
-            }
-        }
-        require(success, "");
-        return out[0] != 0;
-    }
-
-    function verifyMultiple(
-        uint256[2] memory signature,
-        uint256[4][] memory pubkeys,
-        uint256[2][] memory messages
-    ) internal view returns (bool) {
-        uint256 size = pubkeys.length;
-        require(size > 0, "BLS: number of public key is zero");
-        require(
-            size == messages.length,
-            "BLS: number of public keys and messages must be equal"
-        );
-        uint256 inputSize = (size + 1) * 6;
-        uint256[] memory input = new uint256[](inputSize);
-        input[0] = signature[0];
-        input[1] = signature[1];
-        input[2] = N_G2_X1;
-        input[3] = N_G2_X0;
-        input[4] = N_G2_Y1;
-        input[5] = N_G2_Y0;
-        for (uint256 i = 0; i < size; i++) {
-            input[i * 6 + 6] = messages[i][0];
-            input[i * 6 + 7] = messages[i][1];
-            input[i * 6 + 8] = pubkeys[i][1];
-            input[i * 6 + 9] = pubkeys[i][0];
-            input[i * 6 + 10] = pubkeys[i][3];
-            input[i * 6 + 11] = pubkeys[i][2];
-        }
-        uint256[1] memory out;
-        bool success;
-        // solium-disable-next-line security/no-inline-assembly
-        assembly {
-            success := staticcall(
+            callSuccess := staticcall(
                 sub(gas(), 2000),
                 8,
-                add(input, 0x20),
-                mul(inputSize, 0x20),
+                input,
+                384,
                 out,
                 0x20
             )
-            switch success
-            case 0 {
-                invalid()
-            }
         }
-        require(success, "");
-        return out[0] != 0;
+        return (out[0] != 0, callSuccess);
     }
 
     /**
@@ -139,10 +92,6 @@ library BLS {
         // solium-disable-next-line security/no-inline-assembly
         assembly {
             success := staticcall(sub(gas(), 2000), 6, bnAddInput, 128, p0, 64)
-            switch success
-            case 0 {
-                invalid()
-            }
         }
         require(success, "BLS: bn add call failed");
         return p0;

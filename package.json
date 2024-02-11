@@ -9,7 +9,8 @@
     "bls:newkey": "yarn ts-node scripts/newkey.ts",
     "bls:sign": "yarn ts-node scripts/sign.ts",
     "build:dist": "yarn tsc",
-    "test": "yarn hardhat --network hardhat test"
+    "test": "yarn hardhat --network hardhat test",
+    "coverage": "yarn hardhat coverage"
   },
   "keywords": ["bls", "bn254", "alt_bn128", "cryptography"],
   "author": "Kevin Charm <kevin@kevincharm.com>",

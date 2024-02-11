@@ -39,25 +39,45 @@ contract BLSTest {
         gas = gas - gasleft();
     }
 
-    function verifySingle(
+    function test__verifySingle(
         uint256[2] memory signature,
         uint256[4] memory pubkey,
         uint256[2] memory message
-    ) external view returns (bool success, uint256 gas) {
+    )
+        external
+        view
+        returns (bool pairingSuccess, bool callSuccess, uint256 gas)
+    {
         gas = gasleft();
-        success = BLS.verifySingle(signature, pubkey, message);
+        (pairingSuccess, callSuccess) = BLS.verifySingle(
+            signature,
+            pubkey,
+            message
+        );
         gas = gas - gasleft();
     }
 
-    function isOnCurveG1(
+    function test__isOnCurveG1(
         uint256[2] memory point
-    ) external pure returns (bool _isOnCurve) {
-        return BLS.isOnCurveG1(point);
+    ) external view returns (bool _isOnCurve, uint256 gas) {
+        gas = gasleft();
+        _isOnCurve = BLS.isOnCurveG1(point);
+        gas = gas - gasleft();
     }
 
-    function isOnCurveG2(
+    function test__isOnCurveG2(
         uint256[4] memory point
-    ) external pure returns (bool _isOnCurve) {
-        return BLS.isOnCurveG2(point);
+    ) external view returns (bool _isOnCurve, uint256 gas) {
+        gas = gasleft();
+        _isOnCurve = BLS.isOnCurveG2(point);
+        gas = gas - gasleft();
+    }
+
+    function test__isValidSignature(
+        uint256[2] memory signature
+    ) external view returns (bool isValid, uint256 gas) {
+        gas = gasleft();
+        isValid = BLS.isValidSignature(signature);
+        gas = gas - gasleft();
     }
 }
