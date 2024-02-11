@@ -13,7 +13,7 @@ Most of the code in this repository has been taken from these repositories:
 This repo also comes with an accompanying JS lib for creating signatures.
 
 ```sh
-    npm install --save @kevincharm/bls-bn254
+    npm install --save @kevincharm/bls-bn254 ethers@^6 mcl-wasm@1.4.0
 ```
 
 ## Readings
