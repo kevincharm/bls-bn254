@@ -7,6 +7,7 @@ import {
     zeroPadValue,
     toBeArray,
     toBeHex,
+    randomBytes,
 } from 'ethers'
 const mcl = require('mcl-wasm')
 import type { G1, G2, Fr, Fp, Fp2 } from 'mcl-wasm'
@@ -22,7 +23,7 @@ export class BlsBn254 {
     public readonly G1: G1
     public readonly G2: G2
 
-    private constructor(public readonly domain: string) {
+    private constructor() {
         this.G1 = new mcl.G1()
         const g1x: Fp = new mcl.Fp()
         const g1y: Fp = new mcl.Fp()
@@ -48,11 +49,11 @@ export class BlsBn254 {
         this.G2.setZ(g2z)
     }
 
-    public static async create(domain: string) {
+    public static async create() {
         await mcl.init(mcl.BN_SNARK1)
         mcl.setETHserialization(true)
-        mcl.setMapToMode(5) // MCL_MAP_TO_MODE_HASH_TO_CURVE
-        return new BlsBn254(domain)
+        mcl.setMapToMode(0) // FT
+        return new BlsBn254()
     }
 
     public newG1(): G1 {
@@ -116,7 +117,7 @@ export class BlsBn254 {
         return els
     }
 
-    public hashToPoint(domain: Uint8Array, msg: Uint8Array) {
+    public hashToPoint(domain: Uint8Array, msg: Uint8Array): G1 {
         const hashRes = this.hashToField(domain, msg, 2)
         const e0 = hashRes[0]
         const e1 = hashRes[1]
@@ -170,14 +171,18 @@ export class BlsBn254 {
         return M
     }
 
-    public createKeyPair() {
+    public createKeyPair(_secretKey?: `0x${string}`) {
+        if (!_secretKey) {
+            _secretKey = hexlify(randomBytes(31)) as `0x${string}`
+        }
+
         const secretKey: Fr = new mcl.Fr()
-        // secretKey.setHashOf(hexlify(randomBytes(12)))
-        secretKey.setHashOf('0xdeadbeef')
+        secretKey.setHashOf(_secretKey)
         const pubKey: G2 = mcl.mul(this.G2, secretKey)
         pubKey.normalize()
         return {
             secretKey,
+            _secretKey,
             pubKey,
         }
     }

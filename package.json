@@ -6,6 +6,8 @@
   "types": "dist/lib/BlsBn254.d.ts",
   "files": ["package.json", "dist/lib", "LICENSE", "README.md"],
   "scripts": {
+    "bls:newkey": "yarn ts-node scripts/newkey.ts",
+    "bls:sign": "yarn ts-node scripts/sign.ts",
     "build:dist": "yarn tsc",
     "test": "yarn hardhat --network hardhat test"
   },
