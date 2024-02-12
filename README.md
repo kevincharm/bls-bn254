@@ -16,6 +16,22 @@ This repo also comes with an accompanying JS lib for creating signatures.
     npm install --save @kevincharm/bls-bn254 ethers@^6 mcl-wasm@1.4.0
 ```
 
+## Utilities
+
+### Hash-to-point
+
+Hash a regular string
+
+```sh
+    yarn bls:hash "message to hash"
+```
+
+Hash hex bytes
+
+```sh
+    yarn bls:hash 0xdeadbeef
+```
+
 ## Readings
 
 -   [BLS Signatures in Solidity by @liangcc](https://hackmd.io/@liangcc/bls-solidity)

@@ -1,6 +1,6 @@
 import { BlsBn254, kyberMarshalG2 } from '../lib/BlsBn254'
 
-// yarn bls:sign <SK> <MSG>
+// yarn bls:newkey
 
 async function main() {
     const bls = await BlsBn254.create()

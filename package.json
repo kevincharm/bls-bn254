@@ -14,6 +14,7 @@
   "scripts": {
     "bls:newkey": "yarn ts-node scripts/newkey.ts",
     "bls:sign": "yarn ts-node scripts/sign.ts",
+    "bls:hash": "yarn ts-node scripts/hash.ts",
     "build:dist": "yarn tsc",
     "test": "yarn hardhat --network hardhat test",
     "coverage": "yarn hardhat coverage"
