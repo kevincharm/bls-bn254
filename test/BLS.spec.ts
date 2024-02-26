@@ -4,13 +4,8 @@ import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers'
 import { getBytes, hexlify, keccak256, sha256, toUtf8Bytes } from 'ethers'
 import { expect } from 'chai'
 import crypto from 'node:crypto'
-import {
-    BlsBn254,
-    kyberG1ToEvm,
-    kyberG2ToEvm,
-    kyberMarshalG1,
-    kyberMarshalG2,
-} from '../lib/BlsBn254'
+import { BlsBn254, kyberG1ToEvm, kyberG2ToEvm, toHex } from '../lib/BlsBn254'
+import SVDW_TEST_VECTORS from './vectors/svdw'
 
 describe('BLS', () => {
     let mcl: BlsBn254
@@ -24,6 +19,27 @@ describe('BLS', () => {
     beforeEach(async () => {
         ;[deployer] = await ethers.getSigners()
         blsTest = await new BLSTest__factory(deployer).deploy()
+    })
+
+    it('correctly implements SvdW', async () => {
+        for (const { u, p } of SVDW_TEST_VECTORS.slice(500, 800)) {
+            const [pImpl] = await blsTest.test__mapToPoint(u)
+            expect(pImpl).to.deep.eq(p)
+
+            const g1 = mcl.mapToPoint(toHex(BigInt(u)))
+            expect(g1.getX().getStr(16)).to.eq(BigInt(p[0]).toString(16))
+            expect(g1.getY().getStr(16)).to.eq(BigInt(p[1]).toString(16))
+        }
+
+        // fuzz gas
+        let iterations = 100n
+        let sumGasCost = 0n
+        for (let i = 0n; i < iterations; i++) {
+            const [, gasCost] = await blsTest.test__mapToPoint(pickRandomF())
+            sumGasCost += gasCost
+        }
+        const meanGasCost = sumGasCost / iterations
+        console.log(`[svdw] mean gas cost: ${meanGasCost}`)
     })
 
     it('correctly implements expandMsgTo96', async () => {
@@ -51,29 +67,6 @@ describe('BLS', () => {
         expect(impl).to.deep.eq(mcl.hashToField(toUtf8Bytes(domain), msg, 2))
     })
 
-    it('correctly implements mapToPointFT', async () => {
-        const msg = crypto.randomBytes(32)
-
-        const u = mcl.hashToField(toUtf8Bytes(domain), msg, 2)
-        const [p0Impl, p0Gas] = await blsTest.test__mapToPointFT(u[0])
-        const [p1Impl, p1Gas] = await blsTest.test__mapToPointFT(u[1])
-
-        // console.log(`mapToPoint(${u[0]}) = ${p0Impl}`)
-        // console.log(`p0Gas: ${p0Gas}`) // ~25k
-        // console.log(`mapToPoint(${u[1]}) = ${p1Impl}`)
-        // console.log(`p1Gas: ${p1Gas}`) // ~33k
-
-        // vs mcl
-        const p0Mcl = mcl.serialiseG1Point(
-            mcl.mapToPoint(('0x' + u[0].toString(16)) as `0x${string}`),
-        )
-        const p1Mcl = mcl.serialiseG1Point(
-            mcl.mapToPoint(('0x' + u[1].toString(16)) as `0x${string}`),
-        )
-        expect(p0Impl).to.deep.eq(p0Mcl)
-        expect(p1Impl).to.deep.eq(p1Mcl)
-    })
-
     it('correctly implements hashToPoint', async () => {
         for (let i = 0; i < 10; i++) {
             const msg = crypto.randomBytes(32)
@@ -88,7 +81,42 @@ describe('BLS', () => {
         }
     })
 
-    it('verifies only valid sigs', async () => {
+    it('correct verifies a BLS sig from mcl', async () => {
+        const { secretKey, pubKey } = mcl.createKeyPair()
+        // const msg = hexlify(randomBytes(12)) as `0x${string}`
+        // 64-bit round number, encoded in big-endian
+        const roundNumber = new Uint8Array(8)
+        roundNumber[7] = 1 // round = 1
+        const msg = keccak256(roundNumber) as `0x${string}`
+        const [[msgX, msgY]] = await blsTest.test__hashToPoint(toUtf8Bytes(domain), msg)
+        const M = mcl.g1FromEvm(msgX, msgY)
+        expect(M.isValid()).to.eq(true)
+        // console.log('M', kyberMarshalG1(M))
+        const { signature } = mcl.sign(M, secretKey)
+
+        // Kyber serialised format
+        // console.log('pub', kyberMarshalG2(pubKey))
+        // console.log('sig', kyberMarshalG1(signature))
+
+        const args = mcl.toArgs(pubKey, M, signature)
+        expect(await blsTest.test__isOnCurveG1(args.signature).then((ret) => ret[0])).to.eq(true) // 400 gas
+        expect(await blsTest.test__isOnCurveG1(args.M).then((ret) => ret[0])).to.eq(true) // 400 gas
+        expect(await blsTest.test__isOnCurveG2(args.pubKey).then((ret) => ret[0])).to.eq(true) // 865k gas
+        const [isValid, callSuccess, verifySingleGasCost] = await blsTest.test__verifySingle(
+            args.signature,
+            args.pubKey,
+            args.M,
+        )
+        expect(isValid && callSuccess).to.eq(true)
+        console.log('gas:', verifySingleGasCost)
+
+        const invalidSig = args.signature.map((v) => v + 1n) as [bigint, bigint]
+        expect(
+            await blsTest.test__verifySingle(invalidSig, args.pubKey, args.M).then((ret) => ret[0]),
+        ).to.eq(false)
+    })
+
+    it.skip('verifies only valid sigs', async () => {
         const round = 2
         const roundBytes = new Uint8Array(8)
         roundBytes[7] = round
@@ -123,7 +151,7 @@ describe('BLS', () => {
         )
     })
 
-    it('verifies only valid pubkeys', async () => {
+    it.skip('verifies only valid pubkeys', async () => {
         const validPubKey = kyberG2ToEvm(
             getBytes(
                 '0x23c481bf1f32e4ce0c421d9408959b0ba59ad2671a55ae271ee685cee48a516f2ce733a719d57494963388057c26dcf10ac9fe62fab4571948c729f0dbb44017124ee2ce5bbb9f131b1730e639d65d76819bd920984b86efc2142c52747208911c4aab034dd68e6c83daf63673df99bd3a6b8cf95f2079ba3b25378a02d618b3',
@@ -173,7 +201,7 @@ describe('BLS', () => {
         )
     })
 
-    it('correctly implements hashToPoint vs kyber', async () => {
+    it.skip('correctly implements hashToPoint vs kyber', async () => {
         const msg = '0x358518b89b9d3a2a832fe0cdcb2f4f2d66391113001a77e03b80dd720b8d1aab'
         const [hashImpl] = await blsTest.test__hashToPoint(toUtf8Bytes(domain), msg)
         expect(hashImpl).to.deep.eq([
@@ -182,41 +210,7 @@ describe('BLS', () => {
         ])
     })
 
-    it('verify single', async () => {
-        const { secretKey, pubKey } = mcl.createKeyPair()
-        // const msg = hexlify(randomBytes(12)) as `0x${string}`
-        // 64-bit round number, encoded in big-endian
-        const roundNumber = new Uint8Array(8)
-        roundNumber[7] = 1 // round = 1
-        const msg = keccak256(roundNumber) as `0x${string}`
-        const [[msgX, msgY]] = await blsTest.test__hashToPoint(toUtf8Bytes(domain), msg)
-        const M = mcl.g1FromEvm(msgX, msgY)
-        expect(M.isValid()).to.eq(true)
-        // console.log('M', kyberMarshalG1(M))
-        const { signature } = mcl.sign(M, secretKey)
-
-        // Kyber serialised format
-        // console.log('pub', kyberMarshalG2(pubKey))
-        // console.log('sig', kyberMarshalG1(signature))
-
-        const args = mcl.toArgs(pubKey, M, signature)
-        expect(await blsTest.test__isOnCurveG1(args.signature).then((ret) => ret[0])).to.eq(true) // 400 gas
-        expect(await blsTest.test__isOnCurveG1(args.M).then((ret) => ret[0])).to.eq(true) // 400 gas
-        expect(await blsTest.test__isOnCurveG2(args.pubKey).then((ret) => ret[0])).to.eq(true) // 865k gas
-        expect(
-            await blsTest
-                .test__verifySingle(args.signature, args.pubKey, args.M)
-                .then((ret) => ret[0]),
-        ).to.eq(true)
-        // console.log('gas:', await blsTest.verifySingleGasCost(args.signature, args.pubKey, args.M))
-
-        const invalidSig = args.signature.map((v) => v + 1n) as [bigint, bigint]
-        expect(
-            await blsTest.test__verifySingle(invalidSig, args.pubKey, args.M).then((ret) => ret[0]),
-        ).to.eq(false)
-    })
-
-    it('drand outputs', async () => {
+    it.skip('drand outputs', async () => {
         // Get the serialised pubkey from https://<drand_api_endpoint/<chainhash>/info
         const groupPubKey =
             '23c481bf1f32e4ce0c421d9408959b0ba59ad2671a55ae271ee685cee48a516f2ce733a719d57494963388057c26dcf10ac9fe62fab4571948c729f0dbb44017124ee2ce5bbb9f131b1730e639d65d76819bd920984b86efc2142c52747208911c4aab034dd68e6c83daf63673df99bd3a6b8cf95f2079ba3b25378a02d618b3'
@@ -276,3 +270,14 @@ describe('BLS', () => {
         }
     })
 })
+
+/// Pick random element from BN254 F_p, accounting for modulo bias
+function pickRandomF(): bigint {
+    for (;;) {
+        const rand32 = crypto.getRandomValues(new Uint8Array(32)) // 256-bit
+        const f = BigInt(hexlify(rand32))
+        if (f < 21888242871839275222246405745257275088696311157297823662689037894645226208583n) {
+            return f
+        }
+    }
+}

@@ -22,26 +22,38 @@ library BLS {
     // prettier-ignore
     uint256 private constant N_G2_Y0 = 13392588948715843804641432497768002650278120570034223513918757245338268106653;
 
-    // sqrt(-3)
-    // prettier-ignore
-    uint256 private constant Z0 = 0x0000000000000000b3c4d79d41a91759a9e4c7e359b6b89eaec68e62effffffd;
-    // (sqrt(-3) - 1)  / 2
-    // prettier-ignore
-    uint256 private constant Z1 = 0x000000000000000059e26bcea0d48bacd4f263f1acdb5c4f5763473177fffffe;
-
     // prettier-ignore
     uint256 private constant T24 = 0x1000000000000000000000000000000000000000000000000;
     // prettier-ignore
     uint256 private constant MASK24 = 0xffffffffffffffffffffffffffffffffffffffffffffffff;
 
-    // estimator address
-    address private constant COST_ESTIMATOR_ADDRESS =
-        0x079d8077C465BD0BF0FC502aD2B846757e415661;
+    /// @notice Param A of BN254
+    uint256 private constant A = 0;
+    /// @notice Param B of BN254
+    uint256 private constant B = 3;
+    /// @notice Param Z for SVDW over E
+    uint256 private constant Z = 1;
+    /// @notice g(Z) where g(x) = x^3 + 3
+    uint256 private constant C1 = 0x4;
+    /// @notice -Z / 2 (mod N)
+    uint256 private constant C2 =
+        0x183227397098d014dc2822db40c0ac2ecbc0b548b438e5469e10460b6c3e7ea3;
+    /// @notice C3 = sqrt(-g(Z) * (3 * Z^2 + 4 * A)) (mod N)
+    ///     and sgn0(C3) == 0
+    uint256 private constant C3 =
+        0x16789af3a83522eb353c98fc6b36d713d5d8d1cc5dffffffa;
+    /// @notice 4 * -g(Z) / (3 * Z^2 + 4 * A) (mod N)
+    uint256 private constant C4 =
+        0x10216f7ba065e00de81ac1e7808072c9dd2b2385cd7b438469602eb24829a9bd;
+    /// @notice (N - 1) / 2
+    uint256 private constant C5 =
+        0x183227397098d014dc2822db40c0ac2ecbc0b548b438e5469e10460b6c3e7ea3;
 
     error BNAddFailed(uint256[4] input);
     error InvalidFieldElement(uint256 x);
     error MapToPointFailed(uint256 noSqrt);
     error InvalidDSTLength(bytes dst);
+    error ModExpFailed(uint256 base, uint256 exponent, uint256 modulus);
 
     function verifySingle(
         uint256[2] memory signature,
@@ -77,7 +89,7 @@ library BLS {
         return (out[0] != 0, callSuccess);
     }
 
-    /// @notice Fouque-Tibouchi constant-time hash-to-curve
+    /// @notice Hash to BN254 G1
     /// @param domain Domain separation tag
     /// @param message Message to hash
     /// @return Point in G1
@@ -100,70 +112,6 @@ library BLS {
         }
         if (!success) revert BNAddFailed(bnAddInput);
         return p0;
-    }
-
-    /// @notice Fouque-Tibouchi specialised SW mapping for BN curves
-    /// @param x Field element to map
-    /// @return p Point on curve
-    function mapToPoint(uint256 x) internal pure returns (uint256[2] memory p) {
-        if (x >= N) revert InvalidFieldElement(x);
-
-        (, bool decision) = sqrt(x);
-
-        uint256 a0 = mulmod(x, x, N);
-        a0 = addmod(a0, 4, N);
-        uint256 a1 = mulmod(x, Z0, N);
-        uint256 a2 = mulmod(a1, a0, N);
-        a2 = inverse(a2);
-        a1 = mulmod(a1, a1, N);
-        a1 = mulmod(a1, a2, N);
-
-        // x1
-        a1 = mulmod(x, a1, N);
-        x = addmod(Z1, N - a1, N);
-        // check curve
-        a1 = mulmod(x, x, N);
-        a1 = mulmod(a1, x, N);
-        a1 = addmod(a1, 3, N);
-        bool found;
-        (a1, found) = sqrt(a1);
-        if (found) {
-            if (!decision) {
-                a1 = N - a1;
-            }
-            return [x, a1];
-        }
-
-        // x2
-        x = N - addmod(x, 1, N);
-        // check curve
-        a1 = mulmod(x, x, N);
-        a1 = mulmod(a1, x, N);
-        a1 = addmod(a1, 3, N);
-        (a1, found) = sqrt(a1);
-        if (found) {
-            if (!decision) {
-                a1 = N - a1;
-            }
-            return [x, a1];
-        }
-
-        // x3
-        x = mulmod(a0, a0, N);
-        x = mulmod(x, x, N);
-        x = mulmod(x, a2, N);
-        x = mulmod(x, a2, N);
-        x = addmod(x, 1, N);
-        // must be on curve
-        a1 = mulmod(x, x, N);
-        a1 = mulmod(a1, x, N);
-        a1 = addmod(a1, 3, N);
-        (a1, found) = sqrt(a1);
-        if (!found) revert MapToPointFailed(a1);
-        if (!decision) {
-            a1 = N - a1;
-        }
-        return [x, a1];
     }
 
     /// @notice Check if `signature` is a valid signature
@@ -476,5 +424,102 @@ library BLS {
         }
 
         return out;
+    }
+
+    /// @notice Map field element to E using SvdW
+    /// @param u Field element to map
+    /// @return p Point on curve
+    function mapToPoint(uint256 u) internal view returns (uint256[2] memory p) {
+        if (u >= N) revert InvalidFieldElement(u);
+
+        uint256 tv1 = mulmod(mulmod(u, u, N), C1, N);
+        uint256 tv2 = addmod(1, tv1, N);
+        tv1 = addmod(1, N - tv1, N);
+        uint256 tv3 = inverse(mulmod(tv1, tv2, N));
+        uint256 tv5 = mulmod(mulmod(mulmod(u, tv1, N), tv3, N), C3, N);
+        uint256 x1 = addmod(C2, N - tv5, N);
+        uint256 x2 = addmod(C2, tv5, N);
+        uint256 tv7 = mulmod(tv2, tv2, N);
+        uint256 tv8 = mulmod(tv7, tv3, N);
+        uint256 x3 = addmod(Z, mulmod(C4, mulmod(tv8, tv8, N), N), N);
+
+        bool hasRoot;
+        uint256 gx;
+        if (legendre(g(x1)) == 1) {
+            p[0] = x1;
+            gx = g(x1);
+            (p[1], hasRoot) = sqrt(gx);
+            if (!hasRoot) revert MapToPointFailed(gx);
+        } else if (legendre(g(x2)) == 1) {
+            p[0] = x2;
+            gx = g(x2);
+            (p[1], hasRoot) = sqrt(gx);
+            if (!hasRoot) revert MapToPointFailed(gx);
+        } else {
+            p[0] = x3;
+            gx = g(x3);
+            (p[1], hasRoot) = sqrt(gx);
+            if (!hasRoot) revert MapToPointFailed(gx);
+        }
+        if (sgn0(u) != sgn0(p[1])) {
+            p[1] = N - p[1];
+        }
+    }
+
+    /// @notice g(x) = y^2 = x^3 + 3
+    function g(uint256 x) private pure returns (uint256) {
+        return addmod(mulmod(mulmod(x, x, N), x, N), B, N);
+    }
+
+    /// @notice https://datatracker.ietf.org/doc/html/rfc9380#name-the-sgn0-function
+    function sgn0(uint256 x) private pure returns (uint256) {
+        return x % 2;
+    }
+
+    /// @notice Compute Legendre symbol of u
+    /// @param u Field element
+    /// @return 1 if u is a quadratic residue, -1 if not, or 0 if u = 0 (mod p)
+    function legendre(uint256 u) private view returns (int8) {
+        uint256 x = modexpLegendre(u);
+        if (x == N - 1) {
+            return -1;
+        }
+        if (x != 0 && x != 1) {
+            revert MapToPointFailed(u);
+        }
+        return int8(int256(x));
+    }
+
+    /// @notice This is cheaper than an addchain for exponent (N-1)/2
+    function modexpLegendre(uint256 u) private view returns (uint256 output) {
+        bytes memory input = new bytes(192);
+        bool success;
+        assembly {
+            let p := add(input, 32)
+            mstore(p, 32) // len(u)
+            p := add(p, 32)
+            mstore(p, 32) // len(exp)
+            p := add(p, 32)
+            mstore(p, 32) // len(mod)
+            p := add(p, 32)
+            mstore(p, u) // u
+            p := add(p, 32)
+            mstore(p, C5) // (N-1)/2
+            p := add(p, 32)
+            mstore(p, N) // N
+
+            success := staticcall(
+                gas(),
+                5,
+                add(input, 32),
+                192,
+                0x00, // scratch space <- result
+                32
+            )
+            output := mload(0x00) // output <- result
+        }
+        if (!success) {
+            revert ModExpFailed(u, C5, N);
+        }
     }
 }
