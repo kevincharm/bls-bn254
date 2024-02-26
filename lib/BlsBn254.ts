@@ -232,7 +232,7 @@ export class BlsBn254 {
         if (legendre(g(x1)) === 1n) {
             x = x1
             y = sqrt(g(x1))
-        } else if (legendre(g(x2)) == 1n) {
+        } else if (legendre(g(x2)) === 1n) {
             x = x2
             y = sqrt(g(x2))
         } else {
