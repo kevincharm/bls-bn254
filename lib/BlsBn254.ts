@@ -257,7 +257,9 @@ export class BlsBn254 {
     }
 
     private g(x: bigint): bigint {
-        return mod(x * x * x + 3n, BlsBn254.FIELD_ORDER)
+        const mul = this.mul.bind(this)
+        const add = this.add.bind(this)
+        return add(mul(mul(x, x), x), 3n)
     }
 
     private neg(x: bigint) {
