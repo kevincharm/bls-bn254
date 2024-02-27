@@ -8,6 +8,7 @@ import {
     toBeArray,
     toBeHex,
     randomBytes,
+    solidityPacked,
 } from 'ethers'
 const mcl = require('mcl-wasm')
 import type { G1, G2, Fr, Fp, Fp2 } from 'mcl-wasm'
@@ -69,34 +70,41 @@ export class BlsBn254 {
             throw new Error('bad domain size')
         }
 
-        const b_in_bytes = 32n
-        const r_in_bytes = b_in_bytes * 2n
-        const ell = ceilDiv(outLen, b_in_bytes)
-        if (ell > 255) {
-            throw new Error('invalid xmd length')
+        const domainLen = domain.length
+        if (domainLen > 255) {
+            throw new Error('InvalidDSTLength')
         }
-        const DST_prime = concat([domain, new Uint8Array([domain.byteLength])])
-        const Z_pad = new Uint8Array(Number(r_in_bytes))
-        const l_i_b_str = new Uint8Array([(outLen >> 8) & 0xff, outLen & 0xff])
-        const b: bigint[] = []
-        const b_0 = BigInt(
-            keccak256(concat([Z_pad, msg, l_i_b_str, new Uint8Array([0]), DST_prime])),
+        const zpad = new Uint8Array(136)
+        const b_0 = solidityPacked(
+            ['bytes', 'bytes', 'uint8', 'uint8', 'uint8', 'bytes', 'uint8'],
+            [zpad, msg, outLen >> 8, outLen & 0xff, 0, domain, domainLen],
         )
-        b[0] = BigInt(
-            keccak256(concat([zeroPadValue(toBeArray(b_0), 32), new Uint8Array([1]), DST_prime])),
+        const b0 = keccak256(b_0)
+
+        const b_i = solidityPacked(
+            ['bytes', 'uint8', 'bytes', 'uint8'],
+            [b0, 1, domain, domain.length],
         )
+        let bi = keccak256(b_i)
+
+        const out = new Uint8Array(outLen)
+        const ell = Math.floor((outLen + 32 - 1) / 32) // keccak256 blksize
         for (let i = 1; i < ell; i++) {
-            b[i] = BigInt(
-                keccak256(
-                    concat([
-                        zeroPadValue(toBeArray(b_0 ^ b[i - 1]), 32),
-                        new Uint8Array([i + 1]),
-                        DST_prime,
-                    ]),
-                ),
+            const b_i = solidityPacked(
+                ['bytes32', 'uint8', 'bytes', 'uint8'],
+                [toHex(BigInt(b0) ^ BigInt(bi)), 1 + i, domain, domain.length],
             )
+            const bi_bytes = getBytes(bi)
+            for (let j = 0; j < 32; j++) {
+                out[(i - 1) * 32 + j] = bi_bytes[j]
+            }
+            bi = keccak256(b_i)
         }
-        return getBytes(concat(b.map((v) => zeroPadValue(toBeHex(v), 32))))
+        const bi_bytes = getBytes(bi)
+        for (let j = 0; j < 32; j++) {
+            out[(ell - 1) * 32 + j] = bi_bytes[j]
+        }
+        return out
     }
 
     public hashToField(domain: Uint8Array, msg: Uint8Array, count: number): bigint[] {

@@ -1,11 +1,13 @@
 import { ethers } from 'hardhat'
 import { BLSTest, BLSTest__factory } from '../typechain-types'
 import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers'
-import { getBytes, hexlify, keccak256, sha256, toUtf8Bytes } from 'ethers'
+import { getBytes, hexlify, keccak256, sha256, toUtf8Bytes, zeroPadValue } from 'ethers'
 import { expect } from 'chai'
 import crypto from 'node:crypto'
 import { BlsBn254, kyberG1ToEvm, kyberG2ToEvm, toHex } from '../lib/BlsBn254'
 import SVDW_TEST_VECTORS from './vectors/svdw'
+import { expand_message_xmd } from '@noble/curves/abstract/hash-to-curve'
+import { keccak_256 } from '@noble/hashes/sha3'
 
 describe('BLS', () => {
     let mcl: BlsBn254
@@ -43,28 +45,50 @@ describe('BLS', () => {
     })
 
     it('correctly implements expandMsgTo96', async () => {
-        for (let i = 0; i < 10; i++) {
-            const msg = crypto.randomBytes(32)
+        let sumGasCost = 0n
+        const iterations = 100n
+        for (let i = 0n; i < iterations; i++) {
+            const msgByteLen = 16 + Math.floor(Math.random() * 192)
+            const msg = crypto.randomBytes(msgByteLen)
+            // const msg = getBytes('0xaf6c1f30b2f3f2fd448193f90d6fb55b544a')
 
             const [impl, gas] = await blsTest.test__expandMsgTo96(toUtf8Bytes(domain), msg)
             // console.log(`expandMsgTo96(${hexlify(msg)}) = ${hexlify(impl)}`)
             // console.log(`gas: ${gas}`) // 5967
+            sumGasCost += gas
 
             // vs mcl
             const refMcl = hexlify(mcl.expandMsg(toUtf8Bytes(domain), msg, 96))
             expect(impl).to.eq(refMcl)
+            // vs noble
+            expect(impl).to.eq(
+                hexlify(
+                    expand_message_xmd(new Uint8Array(msg), toUtf8Bytes(domain), 96, keccak_256),
+                ),
+            )
         }
+        console.log(`mean gas cost: ${sumGasCost / iterations}`)
     })
 
     it('correctly implements hashToField', async () => {
-        const msg = crypto.randomBytes(32)
+        for (let i = 0; i < 100; i++) {
+            const msgByteLen = 16 + Math.floor(Math.random() * 192)
+            const msg = crypto.randomBytes(msgByteLen)
 
-        const [impl, gas] = await blsTest.test__hashToField(toUtf8Bytes(domain), msg)
-        // console.log(`hashToField(${hexlify(domain)}, ${hexlify(msg)}) = ${impl}`)
-        // console.log(`gas: ${gas}`) // 6491
+            const [impl, gas] = await blsTest.test__hashToField(toUtf8Bytes(domain), msg)
+            // console.log(`gas: ${gas}`) // 6491
 
-        // vs mcl
-        expect(impl).to.deep.eq(mcl.hashToField(toUtf8Bytes(domain), msg, 2))
+            // Print for kyber tests
+            // console.log(
+            //     `{\n\tMsg: "${hexlify(msg).slice(2)}",\n\tRefX: "${zeroPadValue(
+            //         toHex(impl[0]),
+            //         32,
+            //     ).slice(2)}",\n\tRefY: "${zeroPadValue(toHex(impl[1]), 32).slice(2)}",\n},`,
+            // )
+
+            // vs mcl
+            expect(impl).to.deep.eq(mcl.hashToField(toUtf8Bytes(domain), msg, 2))
+        }
     })
 
     it('correctly implements hashToPoint', async () => {

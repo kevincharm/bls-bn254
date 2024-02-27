@@ -249,181 +249,73 @@ library BLS {
 
     /// @notice Expand arbitrary message to 96 pseudorandom bytes, as described
     ///     in rfc9380 section 5.3.1, using H = keccak256.
-    /// @param domain Domain separation tag
+    /// @param DST Domain separation tag
     /// @param message Message to expand
     function expandMsgTo96(
-        bytes memory domain,
+        bytes memory DST,
         bytes memory message
     ) internal pure returns (bytes memory) {
-        uint256 t1 = domain.length;
-        if (t1 > 255) revert InvalidDSTLength(domain);
-
-        // zero<64>|msg<var>|lib_str<2>|I2OSP(0, 1)<1>|dst<var>|dst_len<1>
-        uint256 t0 = message.length;
-        bytes memory msg0 = new bytes(t1 + t0 + 64 + 4);
-        bytes memory out = new bytes(96);
-
-        // b0
-        // solium-disable-next-line security/no-inline-assembly
-        assembly {
-            let p := add(msg0, 96)
-
-            let z := 0
-            for {
-
-            } lt(z, t0) {
-                z := add(z, 32)
-            } {
-                mstore(add(p, z), mload(add(message, add(z, 32))))
-            }
-            p := add(p, t0)
-
-            mstore8(p, 0)
-            p := add(p, 1)
-            mstore8(p, 96)
-            p := add(p, 1)
-            mstore8(p, 0)
-            p := add(p, 1)
-
-            let words := div(t1, 32)
-            let d := add(domain, 32)
-            // per-word
-            for {
-                let i := 0
-            } lt(i, words) {
-                i := add(i, 1)
-            } {
-                mstore(p, mload(d))
-                p := add(p, 32)
-                d := add(d, 32)
-            }
-            // per-byte
-            let rem := mod(t1, 32)
-            for {
-                let i := 0
-            } lt(i, rem) {
-                i := add(i, 1)
-            } {
-                mstore8(p, shr(248, mload(d)))
-                p := add(p, 1)
-                d := add(d, 1)
-            }
-            // store length
-            mstore8(p, t1)
-
-            let b0 := keccak256(add(msg0, 32), mload(msg0))
-
-            t0 := add(t1, 34)
-
-            mstore(msg0, t0)
-
-            // b1
-            mstore(add(msg0, 32), b0)
-            mstore8(add(msg0, 64), 1)
-
-            p := add(msg0, 65)
-            words := div(t1, 32)
-            d := add(domain, 32)
-            // per-word
-            for {
-                let i := 0
-            } lt(i, words) {
-                i := add(i, 1)
-            } {
-                mstore(p, mload(d))
-                p := add(p, 32)
-                d := add(d, 32)
-            }
-            // per-byte
-            rem := mod(t1, 32)
-            for {
-                let i := 0
-            } lt(i, rem) {
-                i := add(i, 1)
-            } {
-                mstore8(p, shr(248, mload(d)))
-                p := add(p, 1)
-                d := add(d, 1)
-            }
-            // store length
-            mstore8(p, t1)
-
-            let bi := keccak256(add(msg0, 32), mload(msg0))
-
-            mstore(add(out, 32), bi)
-
-            // b2
-            let t := xor(b0, bi)
-            mstore(add(msg0, 32), t)
-            mstore8(add(msg0, 64), 2)
-
-            p := add(msg0, 65)
-            words := div(t1, 32)
-            d := add(domain, 32)
-            // per-word
-            for {
-                let i := 0
-            } lt(i, words) {
-                i := add(i, 1)
-            } {
-                mstore(p, mload(d))
-                p := add(p, 32)
-                d := add(d, 32)
-            }
-            // per-byte
-            rem := mod(t1, 32)
-            for {
-                let i := 0
-            } lt(i, rem) {
-                i := add(i, 1)
-            } {
-                mstore8(p, shr(248, mload(d)))
-                p := add(p, 1)
-                d := add(d, 1)
-            }
-            // store length
-            mstore8(p, t1)
-
-            bi := keccak256(add(msg0, 32), mload(msg0))
-            mstore(add(out, 64), bi)
-
-            // b3
-            t := xor(b0, bi)
-            mstore(add(msg0, 32), t)
-            mstore8(add(msg0, 64), 3)
-
-            p := add(msg0, 65)
-            words := div(t1, 32)
-            d := add(domain, 32)
-            // per-word
-            for {
-                let i := 0
-            } lt(i, words) {
-                i := add(i, 1)
-            } {
-                mstore(p, mload(d))
-                p := add(p, 32)
-                d := add(d, 32)
-            }
-            // per-byte
-            rem := mod(t1, 32)
-            for {
-                let i := 0
-            } lt(i, rem) {
-                i := add(i, 1)
-            } {
-                mstore8(p, shr(248, mload(d)))
-                p := add(p, 1)
-                d := add(d, 1)
-            }
-            // store length
-            mstore8(p, t1)
-
-            bi := keccak256(add(msg0, 32), mload(msg0))
-            mstore(add(out, 96), bi)
+        uint256 domainLen = DST.length;
+        if (domainLen > 255) {
+            revert InvalidDSTLength(DST);
         }
+        bytes memory zpad = new bytes(136);
+        bytes memory b_0 = abi.encodePacked(
+            zpad,
+            message,
+            uint8(0),
+            uint8(96),
+            uint8(0),
+            DST,
+            uint8(domainLen)
+        );
+        bytes32 b0 = keccak256(b_0);
 
+        bytes memory b_i = abi.encodePacked(
+            b0,
+            uint8(1),
+            DST,
+            uint8(domainLen)
+        );
+        bytes32 bi = keccak256(b_i);
+
+        bytes memory out = new bytes(96);
+        uint256 ell = 3;
+        for (uint256 i = 1; i < ell; i++) {
+            b_i = abi.encodePacked(
+                b0 ^ bi,
+                uint8(1 + i),
+                DST,
+                uint8(domainLen)
+            );
+            assembly {
+                let p := add(32, out)
+                p := add(p, mul(32, sub(i, 1)))
+                mstore(p, bi)
+            }
+            bi = keccak256(b_i);
+        }
+        assembly {
+            let p := add(32, out)
+            p := add(p, mul(32, sub(ell, 1)))
+            mstore(p, bi)
+        }
         return out;
+    }
+
+    /// @notice Convert integer to octet stream
+    /// @param value Integer to convert
+    /// @param length Byte-length of integer
+    function i2osp(
+        uint256 value,
+        uint256 length
+    ) internal pure returns (bytes memory) {
+        bytes memory res = new bytes(length);
+        for (int256 i = int256(length) - 1; i >= 0; --i) {
+            res[uint256(i)] = bytes1(uint8(value & 0xff));
+            value >>= 8;
+        }
+        return res;
     }
 
     /// @notice Map field element to E using SvdW
