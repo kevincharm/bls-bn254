@@ -41,7 +41,7 @@ describe('BLS', () => {
             sumGasCost += gasCost
         }
         const meanGasCost = sumGasCost / iterations
-        console.log(`[svdw] mean gas cost: ${meanGasCost}`)
+        console.log(`[mapToPoint] mean gas cost: ${meanGasCost}`)
     })
 
     it('correctly implements expandMsgTo96', async () => {
@@ -67,16 +67,19 @@ describe('BLS', () => {
                 ),
             )
         }
-        console.log(`mean gas cost: ${sumGasCost / iterations}`)
+        console.log(`[expandMsgTo96] mean gas cost: ${sumGasCost / iterations}`)
     })
 
     it('correctly implements hashToField', async () => {
-        for (let i = 0; i < 100; i++) {
+        let sumGasCost = 0n
+        const iterations = 100n
+        for (let i = 0n; i < iterations; i++) {
             const msgByteLen = 16 + Math.floor(Math.random() * 192)
             const msg = crypto.randomBytes(msgByteLen)
 
             const [impl, gas] = await blsTest.test__hashToField(toUtf8Bytes(domain), msg)
             // console.log(`gas: ${gas}`) // 6491
+            sumGasCost += gas
 
             // Print for kyber tests
             // console.log(
@@ -89,20 +92,25 @@ describe('BLS', () => {
             // vs mcl
             expect(impl).to.deep.eq(mcl.hashToField(toUtf8Bytes(domain), msg, 2))
         }
+        console.log(`[hashToField] mean gas cost: ${sumGasCost / iterations}`)
     })
 
     it('correctly implements hashToPoint', async () => {
-        for (let i = 0; i < 10; i++) {
+        let sumGasCost = 0n
+        const iterations = 100n
+        for (let i = 0n; i < iterations; i++) {
             const msg = crypto.randomBytes(32)
 
             const [hashImpl, gas] = await blsTest.test__hashToPoint(toUtf8Bytes(domain), msg)
             // console.log(`hashToPoint(${hexlify(msg)}) = ${hashImpl}`)
             // console.log(`gas: ${gas}`) // ~~ min 50706, max 72506
+            sumGasCost += gas
 
             // mcl
             const hashRef = mcl.serialiseG1Point(mcl.hashToPoint(toUtf8Bytes(domain), msg))
             expect(hashImpl).to.deep.eq(hashRef)
         }
+        console.log(`[hashToPoint] mean gas cost: ${sumGasCost / iterations}`)
     })
 
     it('correct verifies a BLS sig from mcl', async () => {
@@ -132,7 +140,7 @@ describe('BLS', () => {
             args.M,
         )
         expect(isValid && callSuccess).to.eq(true)
-        console.log('gas:', verifySingleGasCost)
+        console.log('[verify] gas:', verifySingleGasCost)
 
         const invalidSig = args.signature.map((v) => v + 1n) as [bigint, bigint]
         expect(
