@@ -303,21 +303,6 @@ library BLS {
         return out;
     }
 
-    /// @notice Convert integer to octet stream
-    /// @param value Integer to convert
-    /// @param length Byte-length of integer
-    function i2osp(
-        uint256 value,
-        uint256 length
-    ) internal pure returns (bytes memory) {
-        bytes memory res = new bytes(length);
-        for (int256 i = int256(length) - 1; i >= 0; --i) {
-            res[uint256(i)] = bytes1(uint8(value & 0xff));
-            value >>= 8;
-        }
-        return res;
-    }
-
     /// @notice Map field element to E using SvdW
     /// @param u Field element to map
     /// @return p Point on curve
