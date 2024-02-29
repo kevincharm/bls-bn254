@@ -186,7 +186,7 @@ describe('BLS', () => {
     it.skip('verifies only valid pubkeys', async () => {
         const validPubKey = kyberG2ToEvm(
             getBytes(
-                '0x23c481bf1f32e4ce0c421d9408959b0ba59ad2671a55ae271ee685cee48a516f2ce733a719d57494963388057c26dcf10ac9fe62fab4571948c729f0dbb44017124ee2ce5bbb9f131b1730e639d65d76819bd920984b86efc2142c52747208911c4aab034dd68e6c83daf63673df99bd3a6b8cf95f2079ba3b25378a02d618b3',
+                '22c42968fc34de59eed98be1ac7ecaca63ed067a2f09b28c1ff604f57f33bf1218b1c0651f1c340ce29c7f1b806e395d0433b9ab531a7cfd6b3b69026db8a9ff1e9786e80c8c5f3791803823ca18fb3beedb866ad7f57b67fc95abc832ab54d901c7b62e8f4d7f668912bd05e9f5f1e106a85a195557c1d009f52511ed00278c',
             ),
         )
         const invalidPubKey = kyberG2ToEvm(
@@ -242,43 +242,49 @@ describe('BLS', () => {
         ])
     })
 
-    it.skip('drand outputs', async () => {
+    it('drand outputs', async () => {
         // Get the serialised pubkey from https://<drand_api_endpoint/<chainhash>/info
         const groupPubKey =
-            '23c481bf1f32e4ce0c421d9408959b0ba59ad2671a55ae271ee685cee48a516f2ce733a719d57494963388057c26dcf10ac9fe62fab4571948c729f0dbb44017124ee2ce5bbb9f131b1730e639d65d76819bd920984b86efc2142c52747208911c4aab034dd68e6c83daf63673df99bd3a6b8cf95f2079ba3b25378a02d618b3'
+            '22c42968fc34de59eed98be1ac7ecaca63ed067a2f09b28c1ff604f57f33bf1218b1c0651f1c340ce29c7f1b806e395d0433b9ab531a7cfd6b3b69026db8a9ff1e9786e80c8c5f3791803823ca18fb3beedb866ad7f57b67fc95abc832ab54d901c7b62e8f4d7f668912bd05e9f5f1e106a85a195557c1d009f52511ed00278c'
         const pkBytes = getBytes(`0x${groupPubKey}`)
         const pk = kyberG2ToEvm(pkBytes)
         const testVectors = [
             {
                 round: 2,
-                randomness: 'b85b88d6153fda7450fd32bb1db638ee322c360a0e5018bfc5f90e0a2c7555e7',
+                randomness: 'f05d8117b23685543bbe4ff64e37c2ebc331278246f96ea2c3ddd44bbc3685d2',
                 signature:
-                    '04f6e9c2b5877d798e742363d075999a5493c3eb96f7c7923c6115bcc8b534a010c8d7068d7738c39d499ce7b084b65d65c8223106e33da12b1b862bccdb9222',
+                    '281d32d8ffeb9842d750976b059c533d88236e243db9c8072ead1fc70a8b3b510d287a4664a5f9012d5936be1b4465e2d45fd1f4ed40203c47cdc8a927776e45',
             },
             {
                 round: 3,
-                randomness: 'c9250479ece6a858d1178c253eb9e6e98f96f694f2d7914cf2cde532e0762af9',
+                randomness: '612e133fed9417332621ae77d2ed4ec8f6d37c58cfdab46bc46ec45792bfa363',
                 signature:
-                    '1f1f4bdf2b1f6e7f4e513f8d647e3d3787b24d12895e97b441bc0501a97cddf300d53e7cdfea87edb753a7c7fce429d69f1b615f25e5731a42c5a4191afac780',
+                    '17b189f24f251e472fc995a3bda9f892422395f07ca3dfd2cec71a7b1b5f02a02fc3c10eed1dd9f77791430799c198444b880a7b8c29489225e0d2728c154b7b',
             },
             {
                 round: 5,
-                randomness: '5e71b795f3d92c5d3c0c20f772d2e0d23ce676eb747b31ec9492a38ef1facc0c',
+                randomness: '11e270db99916cfa2d78674decfc67d3106a12a98872231660be6ba06fbaebbe',
                 signature:
-                    '1c2c0318648cf803a366a5f41792675360ac1aad51089b0ca3f65cb2a017a4d9067170d60a5b98cc27a08e9483ab4456a7dba1362727973f501cad41521f4bf8',
+                    '111ec1ea8e210acb867434b3a59a1842f2fe7924a795d248d343807f677f5086166215f966e2bf70e79e308f3a66ab6ab462ec13977471508320b8d101695d0a',
             },
             // After reshare
             {
                 round: 14,
-                randomness: '83196572217d79d3253b92821607f99f811d06ec20bcca5710b4ecd688fb77b7',
+                randomness: 'f47a9398f3a4c14face1e8e302320352aba6f3e1a50454f3360e3de742640800',
                 signature:
-                    '08f9db2047599ec0281e84e5e5069c97b10229034ed51dcfd0c097b1058cdc5e0049dabfefe0f9c4fac4c4fe0dbece30802a67eece438e7642ea53a1b77851a8',
+                    '2c03eb7e9ce94f17aaa31b14105c6bdb8aa209b14ef2ded13582991c6b6e2f481af1534e9da8de69e1dd652c101ff19dc55aebd9e25749a9314eea7468f0b36d',
             },
             {
                 round: 16,
-                randomness: '869ea34eb5e95c07d39b0a034ff01bf909ca8f6bf6e139a503864816d5d580db',
+                randomness: 'fec4debe4c429a22a19b2692f5f7be83b7f3e1fc66e4cda718971a25b96a318e',
                 signature:
-                    '2696b73cbf934115b102649b99b4bd2b664eb8918b47116b94ec34367ecea2b52687b788db60286fadff49d681ce8d8cf000a39240b3cb18060dbcf6f41e0bf6',
+                    '26b977a91b9eb4af403ea9f7bd78ceb1fc372184b151910b73eb453df52397562350a3cd30ed8157fbe0a0fb37d55ad91b420a53b8fe66d3c371ae72bbf2e00f',
+            },
+            {
+                round: 17,
+                randomness: '0d6b449f1b680c5172af8902451c5f9e0561c40876677dd478731fd614df96ca',
+                signature:
+                    '2a0eea50b7cf25eddd5f5daa87f57e80d725de480bdac391027229351ac25cc526e3949ca6f62ddf6e9384795bf80a0f471e51299c2178c0b68bf07cb19f1c34',
             },
         ]
         for (const { round, signature, randomness } of testVectors) {
