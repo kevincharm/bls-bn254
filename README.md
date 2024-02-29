@@ -1,12 +1,13 @@
 # BLS on BN254
 
-BLS operations on BN254 instead of BLS12-381 in Solidity, including constant-time hash-to-curve using a specialised SW mapping for BN curves from [this paper](https://doi.org/10.1007/978-3-642-33481-8_1).
+BLS operations on BN254 in Solidity, including constant-time hash-to-curve using a the general Shallue-van de Woestijne encoding described in [RFC9380 Section 6.6.1](https://datatracker.ietf.org/doc/html/rfc9380#section-6.6.1).
 
-Most of the code in this repository has been taken from these repositories:
+A lot of the code in this repository has been taken from these repositories:
 
 -   https://github.com/thehubbleproject/hubble-contracts
 -   https://github.com/ChihChengLiang/bls_solidity_python
 -   https://github.com/kilic/evmbls
+-   https://github.com/kevincharm/draft-irtf-cfrg-hash-to-curve
 
 ## JavaScript Library
 
@@ -35,4 +36,4 @@ Hash hex bytes
 ## Readings
 
 -   [BLS Signatures in Solidity by @liangcc](https://hackmd.io/@liangcc/bls-solidity)
--   [Indifferentiable Hashing to Barreto--Naehrig Curves by Fouque & Tibouchi](https://doi.org/10.1007/978-3-642-33481-8_1)
+-   [RFC9380](https://datatracker.ietf.org/doc/html/rfc9380)
