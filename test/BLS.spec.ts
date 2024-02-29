@@ -148,18 +148,18 @@ describe('BLS', () => {
         ).to.eq(false)
     })
 
-    it.skip('verifies only valid sigs', async () => {
+    it('verifies only valid sigs', async () => {
         const round = 2
         const roundBytes = new Uint8Array(8)
         roundBytes[7] = round
         const validSig = kyberG1ToEvm(
             getBytes(
-                '0x04f6e9c2b5877d798e742363d075999a5493c3eb96f7c7923c6115bcc8b534a010c8d7068d7738c39d499ce7b084b65d65c8223106e33da12b1b862bccdb9222',
+                '0x147d98a0bbadf6d1b2115441654c446039ed61ff2f71abefcdb8aefbfd81c37121bd020cd1814033782226408aa7b0ac86fd1682755c39a023282d0031635b7d',
             ),
         )
         const invalidSig = kyberG1ToEvm(
             getBytes(
-                '0x04f6e9c2b5877d798e742363d075999a5493c3eb96f7c7923c6115bcc8b534a010c8d7068d7738c39d499ce7b084b65d65c8223106e33da12b1b862bccdb9200',
+                '0x007d98a0bbadf6d1b2115441654c446039ed61ff2f71abefcdb8aefbfd81c37121bd020cd1814033782226408aa7b0ac86fd1682755c39a023282d0031635b7d',
             ),
         )
         const xFieldOverflowSig = kyberG1ToEvm(
@@ -183,15 +183,15 @@ describe('BLS', () => {
         )
     })
 
-    it.skip('verifies only valid pubkeys', async () => {
+    it('verifies only valid pubkeys', async () => {
         const validPubKey = kyberG2ToEvm(
             getBytes(
-                '22c42968fc34de59eed98be1ac7ecaca63ed067a2f09b28c1ff604f57f33bf1218b1c0651f1c340ce29c7f1b806e395d0433b9ab531a7cfd6b3b69026db8a9ff1e9786e80c8c5f3791803823ca18fb3beedb866ad7f57b67fc95abc832ab54d901c7b62e8f4d7f668912bd05e9f5f1e106a85a195557c1d009f52511ed00278c',
+                '0x22c42968fc34de59eed98be1ac7ecaca63ed067a2f09b28c1ff604f57f33bf1218b1c0651f1c340ce29c7f1b806e395d0433b9ab531a7cfd6b3b69026db8a9ff1e9786e80c8c5f3791803823ca18fb3beedb866ad7f57b67fc95abc832ab54d901c7b62e8f4d7f668912bd05e9f5f1e106a85a195557c1d009f52511ed00278c',
             ),
         )
         const invalidPubKey = kyberG2ToEvm(
             getBytes(
-                '0x23c481bf1f32e4ce0c421d9408959b0ba59ad2671a55ae271ee685cee48a516f2ce733a719d57494963388057c26dcf10ac9fe62fab4571948c729f0dbb44017124ee2ce5bbb9f131b1730e639d65d76819bd920984b86efc2142c52747208911c4aab034dd68e6c83daf63673df99bd3a6b8cf95f2079ba3b25378a02d61800',
+                '0x22c42968fc34de59eed98be1ac7ecaca63ed067a2f09b28c1ff604f57f33bf1218b1c0651f1c340ce29c7f1b806e395d0433b9ab531a7cfd6b3b69026db8a9ff1e9786e80c8c5f3791803823ca18fb3beedb866ad7f57b67fc95abc832ab54d901c7b62e8f4d7f668912bd05e9f5f1e106a85a195557c1d009f52511ed002700',
             ),
         )
         const xFieldOverflowSig = kyberG2ToEvm(
@@ -233,13 +233,24 @@ describe('BLS', () => {
         )
     })
 
-    it.skip('correctly implements hashToPoint vs kyber', async () => {
-        const msg = '0x358518b89b9d3a2a832fe0cdcb2f4f2d66391113001a77e03b80dd720b8d1aab'
-        const [hashImpl] = await blsTest.test__hashToPoint(toUtf8Bytes(domain), msg)
-        expect(hashImpl).to.deep.eq([
-            0x12d20d3bd0cee942b9c39eef725b6b55a25b0ac2acf3fb0c0c1afa3fd0426e03n,
-            0x0260318df23be5936deefeae50fbe4a03c29b3cf7fbae115caf2e6ac518fc9f9n,
-        ])
+    it('correctly implements hashToPoint vs kyber', async () => {
+        const kyberOutputs = [
+            {
+                msg: 'The Times 03/Jan/2009 Chancellor on brink of second bailout for banks',
+                g1: '0x09f71d403b4f8d7c7b9ba053d7759374885c1388201a4707841532ea11b0302024f8f78ac1a174f0b013aa29a4eef8e0e09ace5c859d75509cd9918a28f0eb21',
+            },
+            {
+                msg: 'abc',
+                g1: '0x263d6232dfe15bdc1b2d0a446e75f73a5e704e31a8d5a9f0ba9a1c685cde7ffd2a80c257aae3c99df125a2ffddb630a82d1284c8516fdd3c81758de714c05dc0',
+            },
+        ] as const
+        for (const { msg, g1 } of kyberOutputs) {
+            const [hashImpl] = await blsTest.test__hashToPoint(
+                toUtf8Bytes(domain),
+                toUtf8Bytes(msg),
+            )
+            expect(hashImpl).to.deep.eq(kyberG1ToEvm(getBytes(g1)))
+        }
     })
 
     it('drand outputs', async () => {
