@@ -22,7 +22,7 @@ contract BLSTest {
         gas = gas - gasleft();
     }
 
-    function test__mapToPointFT(
+    function test__mapToPoint(
         uint256 value
     ) external view returns (uint256[2] memory p, uint256 gas) {
         gas = gasleft();

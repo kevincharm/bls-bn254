@@ -1,4 +1,4 @@
-import { getBytes, isHexString, toBeHex, toUtf8Bytes, zeroPadValue } from 'ethers'
+import { getBytes, isHexString, toBeHex, toUtf8Bytes } from 'ethers'
 import { BlsBn254 } from '../lib/BlsBn254'
 
 // hash-to-point
@@ -8,17 +8,22 @@ import { BlsBn254 } from '../lib/BlsBn254'
 //
 // hex bytes (make sure it's even-length)
 //  yarn bls:hash 0xdeadbeef
+//
+// with optional DST
+//  yarn bls:hash 0xdeadbeef "custom domain separator"
 
-const DEFAULT_DOMAIN = toUtf8Bytes('BLS_SIG_BN254G1_XMD:KECCAK-256_SSWU_RO_NUL_') // DST used in drand BN254 for hashing to G1
+const DEFAULT_DOMAIN = 'BLS_SIG_BN254G1_XMD:KECCAK-256_SSWU_RO_NUL_' // DST used in drand BN254 for hashing to G1
 
 async function main() {
     const bls = await BlsBn254.create()
     const msg = process.argv[2]
+    const dst = process.argv[3] || DEFAULT_DOMAIN
     const msgBytes = isHexString(msg) ? getBytes(msg) : toUtf8Bytes(msg)
-    const hash = bls.serialiseG1Point(bls.hashToPoint(DEFAULT_DOMAIN, msgBytes))
+    const dstBytes = isHexString(dst) ? getBytes(dst) : toUtf8Bytes(dst)
+    const hash = bls.serialiseG1Point(bls.hashToPoint(dstBytes, msgBytes))
 
     console.log(
-        'G1',
+        `G1("${dst}")`,
         JSON.stringify(
             {
                 x: toBeHex(hash[0], 32),

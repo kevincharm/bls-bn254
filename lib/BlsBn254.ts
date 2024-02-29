@@ -8,6 +8,7 @@ import {
     toBeArray,
     toBeHex,
     randomBytes,
+    solidityPacked,
 } from 'ethers'
 const mcl = require('mcl-wasm')
 import type { G1, G2, Fr, Fp, Fp2 } from 'mcl-wasm'
@@ -64,46 +65,46 @@ export class BlsBn254 {
         return new mcl.Fp()
     }
 
-    public mapToPoint(eHex: `0x${string}`) {
-        const e0 = BigInt(eHex)
-        let e1: Fp = new mcl.Fp()
-        e1.setStr(mod(e0, BlsBn254.FIELD_ORDER).toString())
-        return e1.mapToG1()
-    }
-
     public expandMsg(domain: Uint8Array, msg: Uint8Array, outLen: number): Uint8Array {
         if (domain.length > 255) {
             throw new Error('bad domain size')
         }
 
-        const b_in_bytes = 32n
-        const r_in_bytes = b_in_bytes * 2n
-        const ell = ceilDiv(outLen, b_in_bytes)
-        if (ell > 255) {
-            throw new Error('invalid xmd length')
+        const domainLen = domain.length
+        if (domainLen > 255) {
+            throw new Error('InvalidDSTLength')
         }
-        const DST_prime = concat([domain, new Uint8Array([domain.byteLength])])
-        const Z_pad = new Uint8Array(Number(r_in_bytes))
-        const l_i_b_str = new Uint8Array([(outLen >> 8) & 0xff, outLen & 0xff])
-        const b: bigint[] = []
-        const b_0 = BigInt(
-            keccak256(concat([Z_pad, msg, l_i_b_str, new Uint8Array([0]), DST_prime])),
+        const zpad = new Uint8Array(136)
+        const b_0 = solidityPacked(
+            ['bytes', 'bytes', 'uint8', 'uint8', 'uint8', 'bytes', 'uint8'],
+            [zpad, msg, outLen >> 8, outLen & 0xff, 0, domain, domainLen],
         )
-        b[0] = BigInt(
-            keccak256(concat([zeroPadValue(toBeArray(b_0), 32), new Uint8Array([1]), DST_prime])),
+        const b0 = keccak256(b_0)
+
+        const b_i = solidityPacked(
+            ['bytes', 'uint8', 'bytes', 'uint8'],
+            [b0, 1, domain, domain.length],
         )
+        let bi = keccak256(b_i)
+
+        const out = new Uint8Array(outLen)
+        const ell = Math.floor((outLen + 32 - 1) / 32) // keccak256 blksize
         for (let i = 1; i < ell; i++) {
-            b[i] = BigInt(
-                keccak256(
-                    concat([
-                        zeroPadValue(toBeArray(b_0 ^ b[i - 1]), 32),
-                        new Uint8Array([i + 1]),
-                        DST_prime,
-                    ]),
-                ),
+            const b_i = solidityPacked(
+                ['bytes32', 'uint8', 'bytes', 'uint8'],
+                [toHex(BigInt(b0) ^ BigInt(bi)), 1 + i, domain, domain.length],
             )
+            const bi_bytes = getBytes(bi)
+            for (let j = 0; j < 32; j++) {
+                out[(i - 1) * 32 + j] = bi_bytes[j]
+            }
+            bi = keccak256(b_i)
         }
-        return getBytes(concat(b.map((v) => zeroPadValue(toBeHex(v), 32))))
+        const bi_bytes = getBytes(bi)
+        for (let j = 0; j < 32; j++) {
+            out[(ell - 1) * 32 + j] = bi_bytes[j]
+        }
+        return out
     }
 
     public hashToField(domain: Uint8Array, msg: Uint8Array, count: number): bigint[] {
@@ -205,6 +206,126 @@ export class BlsBn254 {
             M: this.serialiseG1Point(M),
         }
     }
+
+    public mapToPoint(eHex: `0x${string}`): G1 {
+        const C2 = 0x183227397098d014dc2822db40c0ac2ecbc0b548b438e5469e10460b6c3e7ea3n
+        const C3 = 0x16789af3a83522eb353c98fc6b36d713d5d8d1cc5dffffffan
+        const C4 = 0x10216f7ba065e00de81ac1e7808072c9dd2b2385cd7b438469602eb24829a9bdn
+        const Z = 1n
+        const g = this.g.bind(this)
+        const neg = this.neg.bind(this)
+        const add = this.add.bind(this)
+        const sub = this.sub.bind(this)
+        const mul = this.mul.bind(this)
+        const inv0 = this.inv0.bind(this)
+        const sgn0 = this.sgn0.bind(this)
+        const legendre = this.legendre.bind(this)
+        const sqrt = this.sqrt.bind(this)
+
+        const u = BigInt(eHex)
+
+        let tv1 = mul(mul(u, u), g(Z))
+        const tv2 = add(1n, tv1)
+        tv1 = sub(1n, tv1)
+        const tv3 = inv0(mul(tv1, tv2))
+        const tv5 = mul(mul(mul(u, tv1), tv3), C3)
+        const x1 = add(C2, neg(tv5))
+        const x2 = add(C2, tv5)
+        const tv7 = mul(tv2, tv2)
+        const tv8 = mul(tv7, tv3)
+        const x3 = add(Z, mul(C4, mul(tv8, tv8)))
+
+        let x
+        let y
+        if (legendre(g(x1)) === 1n) {
+            x = x1
+            y = sqrt(g(x1))
+        } else if (legendre(g(x2)) === 1n) {
+            x = x2
+            y = sqrt(g(x2))
+        } else {
+            x = x3
+            y = sqrt(g(x3))
+        }
+        if (sgn0(u) != sgn0(y)) {
+            y = neg(y)
+        }
+
+        const g1x: Fp = new mcl.Fp()
+        const g1y: Fp = new mcl.Fp()
+        const g1z: Fp = new mcl.Fp()
+        g1x.setStr(x.toString(), 10)
+        g1y.setStr(y.toString(), 10)
+        g1z.setInt(1)
+        const point: G1 = new mcl.G1()
+        point.setX(g1x)
+        point.setY(g1y)
+        point.setZ(g1z)
+        return point
+    }
+
+    private g(x: bigint): bigint {
+        const mul = this.mul.bind(this)
+        const add = this.add.bind(this)
+        return add(mul(mul(x, x), x), 3n)
+    }
+
+    private neg(x: bigint) {
+        return mod(-x, BlsBn254.FIELD_ORDER)
+    }
+
+    private mul(a: bigint, b: bigint) {
+        return mod(a * b, BlsBn254.FIELD_ORDER)
+    }
+
+    private add(a: bigint, b: bigint) {
+        return mod(a + b, BlsBn254.FIELD_ORDER)
+    }
+
+    private sub(a: bigint, b: bigint) {
+        return mod(a - b, BlsBn254.FIELD_ORDER)
+    }
+
+    private exp(x: bigint, n: bigint): bigint {
+        const mul = this.mul.bind(this)
+        let result = 1n
+        let base = mod(x, BlsBn254.FIELD_ORDER)
+        let e_prime = n
+        while (e_prime > 0) {
+            if (mod(e_prime, 2n) == 1n) {
+                result = mul(result, base)
+            }
+            e_prime = e_prime >> 1n
+            base = mul(base, base)
+        }
+        return result
+    }
+
+    private sqrt(u: bigint) {
+        return this.exp(u, 0xc19139cb84c680a6e14116da060561765e05aa45a1c72a34f082305b61f3f52n)
+    }
+
+    private sgn0(x: bigint) {
+        return mod(x, 2n)
+    }
+
+    private inv0(x: bigint) {
+        if (x === 0n) {
+            return 0n
+        }
+        return this.exp(x, BlsBn254.FIELD_ORDER - 2n)
+    }
+
+    private legendre(u: bigint): 1n | 0n | -1n {
+        const x = this.exp(u, 0x183227397098d014dc2822db40c0ac2ecbc0b548b438e5469e10460b6c3e7ea3n)
+        if (x === BlsBn254.FIELD_ORDER - 1n) {
+            return -1n
+        }
+        if (x !== 0n && x !== 1n) {
+            throw Error('Legendre symbol calc failed')
+        }
+        return x
+    }
 }
 
 export function byteSwap(hex: string, n: number) {
@@ -253,7 +374,7 @@ function mod(a: bigint, b: bigint) {
     return ((a % b) + b) % b
 }
 
-function toHex(n: bigint): `0x${string}` {
+export function toHex(n: bigint): `0x${string}` {
     return ('0x' + n.toString(16).padStart(64, '0')) as `0x${string}`
 }
 
