@@ -172,6 +172,20 @@ export class BlsBn254 {
         return M
     }
 
+    public g2FromEvm(g2x: [bigint, bigint], g2y: [bigint, bigint]) {
+        const xa = g2x[0].toString(16).padStart(64, '0')
+        const xb = g2x[1].toString(16).padStart(64, '0')
+        const x: Fp2 = createFp2(xa, xb)
+        const ya = g2y[0].toString(16).padStart(64, '0')
+        const yb = g2y[1].toString(16).padStart(64, '0')
+        const y: Fp2 = createFp2(ya, yb)
+        const g2: G2 = new mcl.G2()
+        g2.setX(x)
+        g2.setY(y)
+        g2.setZ(createFp2('0x01', '0x00'))
+        return g2
+    }
+
     public createKeyPair(_secretKey?: `0x${string}`) {
         if (!_secretKey) {
             _secretKey = hexlify(randomBytes(31)) as `0x${string}`
