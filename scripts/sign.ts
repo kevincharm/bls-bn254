@@ -1,5 +1,5 @@
 import { getBytes, hexlify, isHexString, toUtf8Bytes } from 'ethers'
-import { bn254 } from '../lib/bn254'
+import { bn254 } from '@kevincharm/noble-bn254-drand'
 
 // Sign with BLS on BN254
 //

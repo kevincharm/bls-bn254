@@ -429,6 +429,11 @@
     "@jridgewell/resolve-uri" "^3.0.3"
     "@jridgewell/sourcemap-codec" "^1.4.10"
 
+"@kevincharm/noble-bn254-drand@^0.0.1":
+  version "0.0.1"
+  resolved "https://registry.yarnpkg.com/@kevincharm/noble-bn254-drand/-/noble-bn254-drand-0.0.1.tgz#78c478e73236a93c6617d77c24a9e206f5fd00fe"
+  integrity sha512-HU5Gmst+nxYx8OYKMWuaJZyXh+9/oqJL/L9F3B4My4/IOZZBqIkZIfHQMuPN6KoFHBni08YOw0sRQqEyHVpnGg==
+
 "@metamask/eth-sig-util@^4.0.0":
   version "4.0.1"
   resolved "https://registry.yarnpkg.com/@metamask/eth-sig-util/-/eth-sig-util-4.0.1.tgz#3ad61f6ea9ad73ba5b19db780d40d9aae5157088"

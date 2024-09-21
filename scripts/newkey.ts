@@ -1,5 +1,5 @@
 import { hexlify } from 'ethers'
-import { bn254 } from '../lib/bn254'
+import { bn254 } from '@kevincharm/noble-bn254-drand'
 
 // yarn bls:newkey
 

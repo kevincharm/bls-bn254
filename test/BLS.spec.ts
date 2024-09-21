@@ -6,7 +6,7 @@ import { expect } from 'chai'
 import crypto from 'node:crypto'
 import { expand_message_xmd, hash_to_field } from '@noble/curves/abstract/hash-to-curve'
 import { unchecked_deserialiseKyberG1, unchecked_deserialiseKyberG2 } from '../lib/kyber'
-import { bn254 } from '../lib/bn254'
+import { bn254 } from '@kevincharm/noble-bn254-drand'
 import { keccak_256 } from '@noble/hashes/sha3'
 import SVDW_TEST_VECTORS from './vectors/svdw'
 
