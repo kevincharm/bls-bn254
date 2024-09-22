@@ -1,16 +1,16 @@
-import { BlsBn254, kyberMarshalG2 } from '../lib/BlsBn254'
+import { hexlify } from 'ethers'
+import { bn254 } from '@kevincharm/noble-bn254-drand'
 
 // yarn bls:newkey
 
 async function main() {
-    const bls = await BlsBn254.create()
-    const { pubKey, secretKey, _secretKey } = bls.createKeyPair()
+    const secretKey = bn254.utils.randomPrivateKey()
+    const pubKey = bn254.G2.ProjectivePoint.fromPrivateKey(secretKey).toHex()
     console.log(
         JSON.stringify(
             {
-                secretKey,
-                _secretKey,
-                pubKey: kyberMarshalG2(pubKey),
+                secretKey: hexlify(secretKey),
+                pubKey: pubKey,
             },
             null,
             4,

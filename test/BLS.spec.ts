@@ -1,20 +1,18 @@
 import { ethers } from 'hardhat'
 import { BLSTest, BLSTest__factory } from '../typechain-types'
 import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers'
-import { getBytes, hexlify, keccak256, sha256, toUtf8Bytes, zeroPadValue } from 'ethers'
+import { getBytes, hexlify, keccak256, sha256, toUtf8Bytes } from 'ethers'
 import { expect } from 'chai'
 import crypto from 'node:crypto'
-import { BlsBn254, kyberG1ToEvm, kyberG2ToEvm, toHex } from '../lib/BlsBn254'
-import SVDW_TEST_VECTORS from './vectors/svdw'
-import { expand_message_xmd } from '@noble/curves/abstract/hash-to-curve'
+import { expand_message_xmd, hash_to_field } from '@noble/curves/abstract/hash-to-curve'
+import { unchecked_deserialiseKyberG1, unchecked_deserialiseKyberG2 } from '../lib/kyber'
+import { bn254 } from '@kevincharm/noble-bn254-drand'
 import { keccak_256 } from '@noble/hashes/sha3'
+import SVDW_TEST_VECTORS from './vectors/svdw'
 
 describe('BLS', () => {
-    let mcl: BlsBn254
-    const domain = 'BLS_SIG_BN254G1_XMD:KECCAK-256_SSWU_RO_NUL_'
-    before(async () => {
-        mcl = await BlsBn254.create()
-    })
+    const domain = 'BLS_SIG_BN254G1_XMD:KECCAK-256_SVDW_RO_NUL_'
+    before(async () => {})
 
     let deployer: SignerWithAddress
     let blsTest: BLSTest
@@ -24,13 +22,13 @@ describe('BLS', () => {
     })
 
     it('correctly implements SvdW', async () => {
-        for (const { u, p } of SVDW_TEST_VECTORS.slice(500, 800)) {
+        for (const { u, p } of SVDW_TEST_VECTORS) {
             const [pImpl] = await blsTest.test__mapToPoint(u)
             expect(pImpl).to.deep.eq(p)
 
-            const g1 = mcl.mapToPoint(toHex(BigInt(u)))
-            expect(g1.getX().getStr(16)).to.eq(BigInt(p[0]).toString(16))
-            expect(g1.getY().getStr(16)).to.eq(BigInt(p[1]).toString(16))
+            const g1 = bn254.G1.mapToCurve([BigInt(u)])
+            expect(g1.toAffine().x).to.eq(BigInt(p[0]))
+            expect(g1.toAffine().y).to.eq(BigInt(p[1]))
         }
 
         // fuzz gas
@@ -50,16 +48,10 @@ describe('BLS', () => {
         for (let i = 0n; i < iterations; i++) {
             const msgByteLen = 16 + Math.floor(Math.random() * 192)
             const msg = crypto.randomBytes(msgByteLen)
-            // const msg = getBytes('0xaf6c1f30b2f3f2fd448193f90d6fb55b544a')
 
             const [impl, gas] = await blsTest.test__expandMsgTo96(toUtf8Bytes(domain), msg)
-            // console.log(`expandMsgTo96(${hexlify(msg)}) = ${hexlify(impl)}`)
-            // console.log(`gas: ${gas}`) // 5967
             sumGasCost += gas
 
-            // vs mcl
-            const refMcl = hexlify(mcl.expandMsg(toUtf8Bytes(domain), msg, 96))
-            expect(impl).to.eq(refMcl)
             // vs noble
             expect(impl).to.eq(
                 hexlify(
@@ -78,7 +70,6 @@ describe('BLS', () => {
             const msg = crypto.randomBytes(msgByteLen)
 
             const [impl, gas] = await blsTest.test__hashToField(toUtf8Bytes(domain), msg)
-            // console.log(`gas: ${gas}`) // 6491
             sumGasCost += gas
 
             // Print for kyber tests
@@ -89,8 +80,16 @@ describe('BLS', () => {
             //     ).slice(2)}",\n\tRefY: "${zeroPadValue(toHex(impl[1]), 32).slice(2)}",\n},`,
             // )
 
-            // vs mcl
-            expect(impl).to.deep.eq(mcl.hashToField(toUtf8Bytes(domain), msg, 2))
+            // vs noble
+            const htfRef = hash_to_field(msg, 2, {
+                DST: domain,
+                expand: 'xmd',
+                hash: keccak_256,
+                p: bn254.fields.Fp.ORDER,
+                m: 1,
+                k: 128,
+            }).flat()
+            expect(impl).to.deep.eq(htfRef)
         }
         console.log(`[hashToField] mean gas cost: ${sumGasCost / iterations}`)
     })
@@ -107,44 +106,58 @@ describe('BLS', () => {
             sumGasCost += gas
 
             // mcl
-            const hashRef = mcl.serialiseG1Point(mcl.hashToPoint(toUtf8Bytes(domain), msg))
-            expect(hashImpl).to.deep.eq(hashRef)
+            const hashRef = bn254.G1.hashToCurve(msg, {
+                DST: domain,
+            }).toAffine()
+            expect(hashImpl).to.deep.eq([hashRef.x, hashRef.y])
         }
         console.log(`[hashToPoint] mean gas cost: ${sumGasCost / iterations}`)
     })
 
-    it('correct verifies a BLS sig from mcl', async () => {
-        const { secretKey, pubKey } = mcl.createKeyPair()
-        // const msg = hexlify(randomBytes(12)) as `0x${string}`
+    it('correct verifies a BLS sig from noble-curves', async () => {
+        const secretKey = bn254.utils.randomPrivateKey()
+        const pubKey = bn254.G2.ProjectivePoint.fromPrivateKey(secretKey).toAffine()
+
         // 64-bit round number, encoded in big-endian
         const roundNumber = new Uint8Array(8)
         roundNumber[7] = 1 // round = 1
         const msg = keccak256(roundNumber) as `0x${string}`
         const [[msgX, msgY]] = await blsTest.test__hashToPoint(toUtf8Bytes(domain), msg)
-        const M = mcl.g1FromEvm(msgX, msgY)
-        expect(M.isValid()).to.eq(true)
-        // console.log('M', kyberMarshalG1(M))
-        const { signature } = mcl.sign(M, secretKey)
+        const M = bn254.G1.ProjectivePoint.fromAffine({ x: msgX, y: msgY })
+        expect(() => M.assertValidity()).to.not.throw('Message is not valid point')
+        const signature = bn254.signShortSignature(M, secretKey).toAffine()
 
-        // Kyber serialised format
-        // console.log('pub', kyberMarshalG2(pubKey))
-        // console.log('sig', kyberMarshalG1(signature))
+        // // Kyber serialised format
+        // // console.log('pub', kyberMarshalG2(pubKey))
+        // // console.log('sig', kyberMarshalG1(signature))
 
-        const args = mcl.toArgs(pubKey, M, signature)
-        expect(await blsTest.test__isOnCurveG1(args.signature).then((ret) => ret[0])).to.eq(true) // 400 gas
-        expect(await blsTest.test__isOnCurveG1(args.M).then((ret) => ret[0])).to.eq(true) // 400 gas
+        const args = {
+            sig: [signature.x, signature.y] as [bigint, bigint],
+            pubKey: [pubKey.x.c0, pubKey.x.c1, pubKey.y.c0, pubKey.y.c1] as [
+                bigint,
+                bigint,
+                bigint,
+                bigint,
+            ],
+            msg: [M.toAffine().x, M.toAffine().y] as [bigint, bigint],
+        }
+        expect(await blsTest.test__isOnCurveG1(args.sig).then((ret) => ret[0])).to.eq(true) // 400 gas
+        expect(await blsTest.test__isOnCurveG1(args.msg).then((ret) => ret[0])).to.eq(true) // 400 gas
         expect(await blsTest.test__isOnCurveG2(args.pubKey).then((ret) => ret[0])).to.eq(true) // 865k gas
         const [isValid, callSuccess, verifySingleGasCost] = await blsTest.test__verifySingle(
-            args.signature,
+            args.sig,
             args.pubKey,
-            args.M,
+            args.msg,
         )
         expect(isValid && callSuccess).to.eq(true)
         console.log('[verify] gas:', verifySingleGasCost)
 
-        const invalidSig = args.signature.map((v) => v + 1n) as [bigint, bigint]
+        // TODO: Split
+        const invalidSig = args.sig.map((v) => v + 1n) as [bigint, bigint]
         expect(
-            await blsTest.test__verifySingle(invalidSig, args.pubKey, args.M).then((ret) => ret[0]),
+            await blsTest
+                .test__verifySingle(invalidSig, args.pubKey, args.msg)
+                .then((ret) => ret[0]),
         ).to.eq(false)
     })
 
@@ -152,28 +165,28 @@ describe('BLS', () => {
         const round = 2
         const roundBytes = new Uint8Array(8)
         roundBytes[7] = round
-        const validSig = kyberG1ToEvm(
-            getBytes(
-                '0x147d98a0bbadf6d1b2115441654c446039ed61ff2f71abefcdb8aefbfd81c37121bd020cd1814033782226408aa7b0ac86fd1682755c39a023282d0031635b7d',
-            ),
-        )
-        const invalidSig = kyberG1ToEvm(
+        const validSig = bn254.G1.ProjectivePoint.fromHex(
+            '147d98a0bbadf6d1b2115441654c446039ed61ff2f71abefcdb8aefbfd81c37121bd020cd1814033782226408aa7b0ac86fd1682755c39a023282d0031635b7d',
+        ).toAffine()
+        const invalidSig = unchecked_deserialiseKyberG1(
             getBytes(
                 '0x007d98a0bbadf6d1b2115441654c446039ed61ff2f71abefcdb8aefbfd81c37121bd020cd1814033782226408aa7b0ac86fd1682755c39a023282d0031635b7d',
             ),
         )
-        const xFieldOverflowSig = kyberG1ToEvm(
+        const xFieldOverflowSig = unchecked_deserialiseKyberG1(
             getBytes(
                 '0x30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd480000000000000000000000000000000000000000000000000000000000000000',
             ),
         )
-        const yFieldOverflowSig = kyberG1ToEvm(
+        const yFieldOverflowSig = unchecked_deserialiseKyberG1(
             getBytes(
                 '0x000000000000000000000000000000000000000000000000000000000000000030644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd48',
             ),
         )
 
-        expect(await blsTest.test__isValidSignature(validSig).then((ret) => ret[0])).to.eq(true)
+        expect(
+            await blsTest.test__isValidSignature([validSig.x, validSig.y]).then((ret) => ret[0]),
+        ).to.eq(true)
         expect(await blsTest.test__isValidSignature(invalidSig).then((ret) => ret[0])).to.eq(false)
         expect(await blsTest.test__isValidSignature(xFieldOverflowSig).then((ret) => ret[0])).to.eq(
             false,
@@ -184,38 +197,45 @@ describe('BLS', () => {
     })
 
     it('verifies only valid pubkeys', async () => {
-        const validPubKey = kyberG2ToEvm(
-            getBytes(
-                '0x22c42968fc34de59eed98be1ac7ecaca63ed067a2f09b28c1ff604f57f33bf1218b1c0651f1c340ce29c7f1b806e395d0433b9ab531a7cfd6b3b69026db8a9ff1e9786e80c8c5f3791803823ca18fb3beedb866ad7f57b67fc95abc832ab54d901c7b62e8f4d7f668912bd05e9f5f1e106a85a195557c1d009f52511ed00278c',
-            ),
-        )
-        const invalidPubKey = kyberG2ToEvm(
+        const validPubKey = bn254.G2.ProjectivePoint.fromHex(
+            '22c42968fc34de59eed98be1ac7ecaca63ed067a2f09b28c1ff604f57f33bf1218b1c0651f1c340ce29c7f1b806e395d0433b9ab531a7cfd6b3b69026db8a9ff1e9786e80c8c5f3791803823ca18fb3beedb866ad7f57b67fc95abc832ab54d901c7b62e8f4d7f668912bd05e9f5f1e106a85a195557c1d009f52511ed00278c',
+        ).toAffine()
+        const invalidPubKey = unchecked_deserialiseKyberG2(
             getBytes(
                 '0x22c42968fc34de59eed98be1ac7ecaca63ed067a2f09b28c1ff604f57f33bf1218b1c0651f1c340ce29c7f1b806e395d0433b9ab531a7cfd6b3b69026db8a9ff1e9786e80c8c5f3791803823ca18fb3beedb866ad7f57b67fc95abc832ab54d901c7b62e8f4d7f668912bd05e9f5f1e106a85a195557c1d009f52511ed002700',
             ),
         )
-        const xFieldOverflowSig = kyberG2ToEvm(
+        const xFieldOverflowSig = unchecked_deserialiseKyberG2(
             getBytes(
                 '0x30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd48000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
             ),
         )
-        const yFieldOverflowSig = kyberG2ToEvm(
+        const yFieldOverflowSig = unchecked_deserialiseKyberG2(
             getBytes(
                 '0x000000000000000000000000000000000000000000000000000000000000000030644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd4800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
             ),
         )
-        const zFieldOverflowSig = kyberG2ToEvm(
+        const zFieldOverflowSig = unchecked_deserialiseKyberG2(
             getBytes(
                 '0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000030644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd480000000000000000000000000000000000000000000000000000000000000000',
             ),
         )
-        const wFieldOverflowSig = kyberG2ToEvm(
+        const wFieldOverflowSig = unchecked_deserialiseKyberG2(
             getBytes(
                 '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000030644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd48',
             ),
         )
 
-        expect(await blsTest.test__isValidPublicKey(validPubKey).then((ret) => ret[0])).to.eq(true)
+        expect(
+            await blsTest
+                .test__isValidPublicKey([
+                    validPubKey.x.c0,
+                    validPubKey.x.c1,
+                    validPubKey.y.c0,
+                    validPubKey.y.c1,
+                ])
+                .then((ret) => ret[0]),
+        ).to.eq(true)
         expect(await blsTest.test__isValidPublicKey(invalidPubKey).then((ret) => ret[0])).to.eq(
             false,
         )
@@ -233,32 +253,15 @@ describe('BLS', () => {
         )
     })
 
-    it('correctly implements hashToPoint vs kyber', async () => {
-        const kyberOutputs = [
-            {
-                msg: 'The Times 03/Jan/2009 Chancellor on brink of second bailout for banks',
-                g1: '0x09f71d403b4f8d7c7b9ba053d7759374885c1388201a4707841532ea11b0302024f8f78ac1a174f0b013aa29a4eef8e0e09ace5c859d75509cd9918a28f0eb21',
-            },
-            {
-                msg: 'abc',
-                g1: '0x263d6232dfe15bdc1b2d0a446e75f73a5e704e31a8d5a9f0ba9a1c685cde7ffd2a80c257aae3c99df125a2ffddb630a82d1284c8516fdd3c81758de714c05dc0',
-            },
-        ] as const
-        for (const { msg, g1 } of kyberOutputs) {
-            const [hashImpl] = await blsTest.test__hashToPoint(
-                toUtf8Bytes(domain),
-                toUtf8Bytes(msg),
-            )
-            expect(hashImpl).to.deep.eq(kyberG1ToEvm(getBytes(g1)))
-        }
-    })
-
+    // TODO: Test with evmnet when it's up (DST will be different too)
     it('drand outputs', async () => {
+        // NB: This is the old (wrong) DST running in testnet, should be SVDW not SSWU
+        const domain = 'BLS_SIG_BN254G1_XMD:KECCAK-256_SSWU_RO_NUL_'
         // Get the serialised pubkey from https://<drand_api_endpoint/<chainhash>/info
         const groupPubKey =
             '22c42968fc34de59eed98be1ac7ecaca63ed067a2f09b28c1ff604f57f33bf1218b1c0651f1c340ce29c7f1b806e395d0433b9ab531a7cfd6b3b69026db8a9ff1e9786e80c8c5f3791803823ca18fb3beedb866ad7f57b67fc95abc832ab54d901c7b62e8f4d7f668912bd05e9f5f1e106a85a195557c1d009f52511ed00278c'
         const pkBytes = getBytes(`0x${groupPubKey}`)
-        const pk = kyberG2ToEvm(pkBytes)
+        const pk = bn254.G2.ProjectivePoint.fromHex(pkBytes).toAffine()
         const testVectors = [
             {
                 round: 2,
@@ -300,16 +303,20 @@ describe('BLS', () => {
         ]
         for (const { round, signature, randomness } of testVectors) {
             const sigBytes = getBytes(`0x${signature}`)
-            const sig = kyberG1ToEvm(sigBytes)
+            const sig = bn254.ShortSignature.fromHex(sigBytes)
 
-            const [isValidSig] = await blsTest.test__isValidSignature(sig)
+            const [isValidSig] = await blsTest.test__isValidSignature([sig.x, sig.y])
             expect(isValidSig).to.eq(true)
 
             // Round number must be interpreted as a uint64, then fed into keccak256
             const roundBytes = getBytes('0x' + round.toString(16).padStart(16, '0'))
             const h = keccak256(roundBytes)
             const [M] = await blsTest.test__hashToPoint(toUtf8Bytes(domain), h)
-            const [valid] = await blsTest.test__verifySingle(sig, pk, [M[0], M[1]])
+            const [valid] = await blsTest.test__verifySingle(
+                [sig.x, sig.y],
+                [pk.x.c0, pk.x.c1, pk.y.c0, pk.y.c1],
+                [M[0], M[1]],
+            )
             expect(valid).to.eq(true)
 
             // NB: drand hashes signatures with sha256 to produce `randomness`,
